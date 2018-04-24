@@ -5,6 +5,15 @@ interface IConfig {
     homeserverUrl: string;
     accessToken: string;
 
+    dbFile: string;
+
+    trelloApiKey: string;
+    trelloApiSecret: string;
+
+    bind: string;
+    port: number;
+    publicBaseUrl: string;
+
     logging: LogConfig;
 }
 

@@ -2,26 +2,37 @@ import { AutojoinRoomsMixin, MatrixClient, SimpleRetryJoinStrategy } from "matri
 import config from "./config";
 import { LogService } from "matrix-js-snippets";
 import { LocalstorageStorageProvider } from "./LocalstorageStorageProvider";
+import { TrelloStore } from "./db/TrelloStore";
+import { CommandProcessor } from "./CommandProcessor";
+import { WebhookProcessor } from "./notifications/WebhookProcessor";
 
 LogService.configure(config.logging);
 const storageProvider = new LocalstorageStorageProvider("./storage");
 const client = new MatrixClient(config.homeserverUrl, config.accessToken, storageProvider);
-// const commands = new CommandProcessor(client);
+const commands = new CommandProcessor(client);
+const processor = new WebhookProcessor(client);
 
-let userId = "";
-client.getUserId().then(uid => {
-    userId = uid;
+AutojoinRoomsMixin.setupOnClient(client);
+client.setJoinStrategy(new SimpleRetryJoinStrategy());
 
-    // client.on("room.message", (roomId, event) => {
-    //     if (event['sender'] === userId) return;
-    //     if (event['type'] !== "m.room.message") return;
-    //     if (!event['content']) return;
-    //     if (event['content']['msgtype'] !== "m.text") return;
-    //
-    //     return commands.tryCommand(roomId, event);
-    // });
+async function finishInit() {
+    const userId = await client.getUserId();
+    LogService.info("index", "Trello bot logged in as " + userId);
 
-    AutojoinRoomsMixin.setupOnClient(client);
-    client.setJoinStrategy(new SimpleRetryJoinStrategy());
+    await TrelloStore.updateSchema();
+
+    client.on("room.message", (roomId, event) => {
+        if (event['sender'] === userId) return;
+        if (event['type'] !== "m.room.message") return;
+        if (!event['content']) return;
+        if (event['content']['msgtype'] !== "m.text") return;
+
+        return commands.tryCommand(roomId, event).catch(err => {
+            LogService.error("index", err);
+        });
+    });
+
     return client.start();
-}).then(() => LogService.info("index", "Trello bot started!"));
+}
+
+finishInit().then(() => LogService.info("index", "Trello bot started!"));

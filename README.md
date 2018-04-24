@@ -8,8 +8,11 @@ Questions? Ask away in [#trellobot:t2bot.io](https://matrix.to/#/#trellobot:t2bo
 
 # Usage
 
-1. Invite `@trello:t2bot.io` to a room
-2. TODO
+1. Invite `@trello:t2bot.io` to a private room
+2. Send the message `!trello login` to authorize the bot to access your boards
+3. Invite `@trello:t2bot.io` to the room where you'd like Trello notifications/commands
+4. Send the message `!trello watch <board url>` 
+5. The bot will now start notifying you about various actions performed on Trello
 
 # Building your own
 

@@ -1,6 +1,17 @@
 homeserverUrl: "https://t2bot.io"
 accessToken: "YOUR_TOKEN_HERE"
 
+# Your API key to access Trello. Can be retrieved from https://trello.com/app-key/
+trelloApiKey: "YOUR_KEY_HERE"
+trelloApiSecret: "YOUR_SECRET_HERE"
+
+# The webserver information
+bind: "0.0.0.0"
+port: 4501
+publicBaseUrl: "https://your.domain.com"
+
+dbFile: "trello.db"
+
 # Settings for controlling how logging works
 logging:
   file: logs/trellobot.log

@@ -3,6 +3,8 @@ config/*
 lib/
 storage/
 
+trello.db
+
 /.idea
 
 /db
