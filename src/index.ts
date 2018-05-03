@@ -27,7 +27,7 @@ async function finishInit() {
         if (!event['content']) return;
         if (event['content']['msgtype'] !== "m.text") return;
 
-        return commands.tryCommand(roomId, event).catch(err => {
+        return Promise.resolve(commands.tryCommand(roomId, event)).catch(err => {
             LogService.error("index", err);
         });
     });
