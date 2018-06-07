@@ -19,6 +19,7 @@ ENV NODE_CONFIG_DIR=/data/config
 ENV BOT_PORT=4501
 ENV BOT_BIND=0.0.0.0
 ENV BOT_DATABASE=/data/trello.db
+ENV BOT_DATA_PATH=/data/storage
 ENV BOT_DOCKER_LOGS=true
 
 CMD node /matrix-trello-bot/index.js

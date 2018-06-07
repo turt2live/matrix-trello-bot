@@ -6,6 +6,7 @@ interface IConfig {
     accessToken: string;
 
     dbFile: string;
+    dataPath: string;
 
     trelloApiKey: string;
     trelloApiSecret: string;
@@ -44,6 +45,15 @@ if (process.env["BOT_DATABASE"]) {
     }
 
     conf.dbFile = readlDbPath;
+}
+
+if (process.env["BOT_DATA_PATH"]) {
+    const realPath = process.env["BOT_DATA_PATH"];
+    if (realPath !== conf.dataPath) {
+        console.warn("Configuration and environment variables do not agree on the data path. Using " + realPath);
+    }
+
+    conf.dataPath = realPath;
 }
 
 if (process.env["BOT_DOCKER_LOGS"]) {

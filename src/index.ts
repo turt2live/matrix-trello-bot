@@ -7,7 +7,7 @@ import { CommandProcessor } from "./CommandProcessor";
 import { WebhookProcessor } from "./notifications/WebhookProcessor";
 
 LogService.configure(config.logging);
-const storageProvider = new LocalstorageStorageProvider("./storage");
+const storageProvider = new LocalstorageStorageProvider(config.dataPath);
 const client = new MatrixClient(config.homeserverUrl, config.accessToken, storageProvider);
 const commands = new CommandProcessor(client);
 const processor = new WebhookProcessor(client);

@@ -14,6 +14,9 @@ publicBaseUrl: "https://your.domain.com"
 # Where the database is located. Not used by the Docker image, and instead relies on the volume.
 dbFile: "trello.db"
 
+# Where sync data and other related information should be stored
+dataPath: "./storage"
+
 # Settings for controlling how logging works
 # The Docker image will only consider the consoleLevel, and not write to any files.
 logging:
