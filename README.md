@@ -23,3 +23,18 @@ Questions? Ask away in [#trellobot:t2bot.io](https://matrix.to/#/#trellobot:t2bo
 3. `npm run build`
 4. Copy `config/default.yaml` to `config/production.yaml`
 5. Run the bot with `NODE_ENV=production node lib/index.js`
+
+### Docker
+
+```
+# Create the directory structure
+# This is all the information kept in the volume: config, logs, and cache
+mkdir -p /matrix-trello-bot/config
+mkdir -p /matrix-trello-bot/storage
+
+# Create the configuration file. Use the default configration as a template.
+nano /matrix-trello-bot/config/production.yaml
+
+# Run the container
+docker run -v /matrix-trello-bot:/data -p 4501:4501 turt2live/matrix-trello-bot
+```

@@ -6,13 +6,16 @@ trelloApiKey: "YOUR_KEY_HERE"
 trelloApiSecret: "YOUR_SECRET_HERE"
 
 # The webserver information
+# The bind address and port number are not used in the Docker image, and should be left as defaults.
 bind: "0.0.0.0"
 port: 4501
 publicBaseUrl: "https://your.domain.com"
 
+# Where the database is located. Not used by the Docker image, and instead relies on the volume.
 dbFile: "trello.db"
 
 # Settings for controlling how logging works
+# The Docker image will only consider the consoleLevel, and not write to any files.
 logging:
   file: logs/trellobot.log
   console: true
