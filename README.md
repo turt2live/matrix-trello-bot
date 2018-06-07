@@ -28,7 +28,7 @@ Questions? Ask away in [#trellobot:t2bot.io](https://matrix.to/#/#trellobot:t2bo
 
 ```
 # Create the directory structure
-# This is all the information kept in the volume: config, logs, and cache
+# The bot needs it's config folder and cache location.
 mkdir -p /matrix-trello-bot/config
 mkdir -p /matrix-trello-bot/storage
 
