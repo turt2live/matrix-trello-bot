@@ -41,6 +41,7 @@ export class CommandProcessor {
             } else {
                 const htmlMessage = "<p>Trello bot help:<br /><pre><code>" +
                     `!trello login                - Generates a link for you to click and authorize the bot\n` +
+                    `!trello logout               - Invalidates and deletes all previously authorized tokens\n` +
                     `!trello watch &lt;board url&gt;    - Watches the given board in this room\n` +
                     `!trello unwatch &lt;board url&gt;  - Watches the given board in this room\n` +
                     "!trello help                 - This menu\n" +
