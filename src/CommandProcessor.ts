@@ -26,6 +26,8 @@ export class CommandProcessor {
         try {
             if (command === "login") {
                 return this.doLoginCommand(roomId, event);
+            } else if (command === "logout") {
+                return this.doLogoutCommand(roomId, event);
             } else if (command === "watch") {
                 if (!args[0]) {
                     return this.sendHtmlMessage(roomId, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
@@ -73,6 +75,25 @@ export class CommandProcessor {
         });
 
         const message = 'Please click here to authorize me to use your account: <a href="' + url + '">' + url + '</a>';
+        return this.sendHtmlMessage(roomId, message);
+    }
+
+    private async doLogoutCommand(roomId: string, event: any): Promise<any> {
+        const tokens = await TrelloToken.findAll({where: {userId: event.sender}});
+
+        for (const token of tokens) {
+            await Trello.deleteToken(token).catch(e => {
+                LogService.error("CommandProcessor", "Error deleting tokens for " + event.sender);
+                LogService.error("CommandProcessor", e)
+            });
+
+            await token.destroy().catch(e => {
+                LogService.error("CommandProcessor", "Error deleting token from database for " + event.sender);
+                LogService.error("CommandProcessor", e)
+            });
+        }
+
+        const message = 'Your have been logged out.';
         return this.sendHtmlMessage(roomId, message);
     }
 

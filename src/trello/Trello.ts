@@ -44,4 +44,18 @@ export class Trello {
             });
         });
     }
+
+    public static deleteToken(token: TrelloToken): Promise<any> {
+        return new Promise((resolve, reject) => {
+            request({
+                url: "https://api.trello.com/1/tokens/" + token.token,
+                method: "DELETE",
+                qs: {key: config.trelloApiKey},
+            }, (err, body, response) => {
+                if (err) reject(err);
+                else if (body.statusCode !== 200) reject(response);
+                else resolve(response);
+            });
+        });
+    }
 }
