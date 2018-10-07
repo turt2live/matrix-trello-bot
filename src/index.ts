@@ -5,12 +5,14 @@ import { LocalstorageStorageProvider } from "./LocalstorageStorageProvider";
 import { TrelloStore } from "./db/TrelloStore";
 import { CommandProcessor } from "./CommandProcessor";
 import { WebhookProcessor } from "./notifications/WebhookProcessor";
+import { DefaultsManager } from "./DefaultsManager";
 
 LogService.configure(config.logging);
 const storageProvider = new LocalstorageStorageProvider(config.dataPath);
 const client = new MatrixClient(config.homeserverUrl, config.accessToken, storageProvider);
-const commands = new CommandProcessor(client);
-const processor = new WebhookProcessor(client);
+const defaultsManager = new DefaultsManager(client);
+const commands = new CommandProcessor(client, defaultsManager);
+const processor = new WebhookProcessor(client, defaultsManager);
 
 AutojoinRoomsMixin.setupOnClient(client);
 client.setJoinStrategy(new SimpleRetryJoinStrategy());
@@ -30,6 +32,13 @@ async function finishInit() {
         return Promise.resolve(commands.tryCommand(roomId, event)).catch(err => {
             LogService.error("index", err);
         });
+    });
+
+    client.on("room.event", (roomId, event) => {
+        if (event['type'] !== "m.room.bot.options") return;
+        if (event['state_key'] !== "_" + userId) return;
+
+        defaultsManager.calculateNewDefaults(roomId);
     });
 
     return client.start();

@@ -16,6 +16,16 @@ export class Trello {
         return OAuthHandler.authedGet(token, "/1/boards/" + boardId);
     }
 
+    public static async idOrUrlToBoard(token: TrelloToken, reference: string): Promise<TrelloBoard> {
+        const boards = await this.getBoards(token);
+        for (const board of boards) {
+            if (board.id.startsWith(reference)) return board;
+            if (reference.startsWith(board.shortUrl)) return board;
+        }
+
+        return null;
+    }
+
     public static newWebhook(token: TrelloToken, idModel: string, callbackUrl: string, description: string): Promise<{ id: string }> {
         return new Promise((resolve, reject) => {
             request({

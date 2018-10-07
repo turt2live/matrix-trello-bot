@@ -6,10 +6,11 @@ import { Trello } from "./trello/Trello";
 import { Webserver } from "./web/Webserver";
 import TrelloWebhook from "./db/models/TrelloWebhook";
 import BoardRooms from "./db/models/BoardRooms";
+import { DefaultsManager } from "./DefaultsManager";
 import striptags = require("striptags");
 
 export class CommandProcessor {
-    constructor(private client: MatrixClient) {
+    constructor(private client: MatrixClient, private defaultsManager: DefaultsManager) {
     }
 
     public tryCommand(roomId: string, event: any): Promise<any> {
@@ -44,14 +45,25 @@ export class CommandProcessor {
                     inRoom = args[0];
                 }
                 return this.doListBoardsCommand(roomId, inRoom, event);
+            } else if (command === "default") {
+                if (args[0] !== "board") {
+                    return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
+                }
+                if (!args[1]) {
+                    return this.sendHtmlReply(roomId, event, "Please specify a board URL. Eg: <code>!trello default " + args[0] + " https://trello.com/b/abc123/your-board</code>")
+                }
+                if (args[0] === "board") {
+                    return this.doSetDefaultBoardCommand(roomId, event, args[1]);
+                }
             } else {
                 const htmlMessage = "<p>Trello bot help:<br /><pre><code>" +
-                    `!trello login                - Generates a link for you to click and authorize the bot\n` +
-                    `!trello logout               - Invalidates and deletes all previously authorized tokens\n` +
-                    `!trello watch &lt;board url&gt;    - Watches the given board in this room\n` +
-                    `!trello unwatch &lt;board url&gt;  - Unwatches the given board in this room\n` +
-                    `!trello boards [room]        - Lists the boards being watched in the room\n` +
-                    "!trello help                 - This menu\n" +
+                    `!trello login                      - Generates a link for you to click and authorize the bot\n` +
+                    `!trello logout                     - Invalidates and deletes all previously authorized tokens\n` +
+                    `!trello watch &lt;board url&gt;          - Watches the given board in this room\n` +
+                    `!trello unwatch &lt;board url&gt;        - Unwatches the given board in this room\n` +
+                    `!trello boards [room]              - Lists the boards being watched in the room\n` +
+                    `!trello default board &lt;board url&gt;  - Sets the default board for the room\n` +
+                    "!trello help                       - This menu\n" +
                     "</code></pre></p>" +
                     "<p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
                 return this.sendHtmlReply(roomId, event, htmlMessage);
@@ -108,8 +120,7 @@ export class CommandProcessor {
             return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
-        const boards = await Trello.getBoards(token);
-        const board = boards.find(b => boardUrl.startsWith(b.shortUrl));
+        const board = await Trello.idOrUrlToBoard(token, boardUrl);
         if (!board) {
             return this.sendHtmlReply(roomId, event, "Board not found. Please verify the URL and try again.");
         }
@@ -185,5 +196,44 @@ export class CommandProcessor {
         if (boards.length === 0) message = "There are no watched boards.";
 
         return this.sendHtmlReply(roomId, event, message);
+    }
+
+    private async doSetDefaultBoardCommand(roomId: string, event: any, boardUrlOrId: string): Promise<any> {
+        if (!(await this.client.userHasPowerLevelFor(event["sender"], roomId, "io.t2l.bots.trello.defaults", true))) {
+            return this.sendHtmlReply(roomId, event, "You do not have permission to run this command");
+        }
+
+        let watchedBoards = await BoardRooms.findAll({where: {roomId: roomId}});
+        if (!watchedBoards) watchedBoards = [];
+
+        for (const watchedBoard of watchedBoards) {
+            if (watchedBoard.boardId.startsWith(boardUrlOrId)) {
+                try {
+                    await this.defaultsManager.setDefaultBoardId(roomId, watchedBoard.boardId);
+                } catch (e) {
+                    LogService.error("CommandProcessor", e);
+                    return this.sendHtmlReply(roomId, event, "Failed to set default board - am I a moderator in the room?");
+                }
+                return this.sendHtmlReply(roomId, event, "Default board set");
+            }
+        }
+
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const board = await Trello.idOrUrlToBoard(token, boardUrlOrId);
+        if (!board) {
+            return this.sendHtmlReply(roomId, event, "Board not found");
+        }
+
+        try {
+            await this.defaultsManager.setDefaultBoardId(roomId, board.id);
+        } catch (e) {
+            LogService.error("CommandProcessor", e);
+            return this.sendHtmlReply(roomId, event, "Failed to set default board - am I a moderator in the room?");
+        }
+        return this.sendHtmlReply(roomId, event, "Default board set");
     }
 }

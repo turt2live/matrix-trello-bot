@@ -5,10 +5,11 @@ import BoardRooms from "../db/models/BoardRooms";
 import { TrelloCard } from "../trello/models/card";
 import { TrelloList } from "../trello/models/list";
 import { TrelloMember } from "../trello/models/member";
+import { DefaultsManager } from "../DefaultsManager";
 import striptags = require("striptags");
 
 export class WebhookProcessor {
-    constructor(private client: MatrixClient) {
+    constructor(private client: MatrixClient, private defaultsManager: DefaultsManager) {
         PubSub.subscribe("webhook", this.onWebhook.bind(this));
     }
 
@@ -29,7 +30,7 @@ export class WebhookProcessor {
             const creator = <TrelloMember>action["memberCreator"];
             if (!card || !list || !creator) return;
 
-            message = creator.fullName + " created the card '" + card.name + "' under '" + list.name + "' on '" + board.name + "'";
+            message = creator.fullName + " created the card '" + card.name + "' under '" + list.name + "'";
         } else if (action["type"] === "updateCard") {
             // TODO: We need a lot more intelligence on parsing updates
 
@@ -45,37 +46,42 @@ export class WebhookProcessor {
             console.log(action["data"]);
 
             if (listAfter && listBefore) {
-                message = creator.fullName + " moved the card '" + card.name + "' from '" + listBefore.name + "' to '" + listAfter.name + "' on '" + board.name + "'";
+                message = creator.fullName + " moved the card '" + card.name + "' from '" + listBefore.name + "' to '" + listAfter.name + "'";
             } else if (old.closed !== card.closed) {
-                if (card.closed) message = creator.fullName + " archived the card '" + card.name + "' under '" + list.name + "' on '" + board.name + "'";
-                else message = creator.fullName + " restored the card '" + card.name + "' under '" + list.name + "' on '" + board.name + "'";
-            } else if (old.pos === undefined) message = creator.fullName + " updated the card '" + card.name + "' under '" + list.name + "' on '" + board.name + "'";
+                if (card.closed) message = creator.fullName + " archived the card '" + card.name + "' under '" + list.name + "'";
+                else message = creator.fullName + " restored the card '" + card.name + "' under '" + list.name + "'";
+            } else if (old.pos === undefined) message = creator.fullName + " updated the card '" + card.name + "' under '" + list.name + "'";
         } else if (action["type"] === "deleteCard") {
             const card = <TrelloCard>action["data"]["card"];
             const list = <TrelloList>action["data"]["list"];
             const creator = <TrelloMember>action["memberCreator"];
             if (!card || !list || !creator) return;
 
-            message = creator.fullName + " deleted the card '" + card.name + "' under '" + list.name + "' on '" + board.name + "'";
+            message = creator.fullName + " deleted the card '" + card.name + "' under '" + list.name + "'";
         } else if (action["type"] === "addMemberToCard") {
             const card = <TrelloCard>action["data"]["card"];
             const creator = <TrelloMember>action["memberCreator"];
             const member = <TrelloMember>action["member"];
             if (!card || !member || !creator) return;
 
-            message = creator.fullName + " added " + member.fullName + " to the card '" + card.name + "' on '" + board.name + "'";
+            message = creator.fullName + " added " + member.fullName + " to the card '" + card.name + "'";
         } else if (action["type"] === "removeMemberFromCard") {
             const card = <TrelloCard>action["data"]["card"];
             const creator = <TrelloMember>action["memberCreator"];
             const member = <TrelloMember>action["member"];
             if (!card || !member || !creator) return;
 
-            message = creator.fullName + " removed " + member.fullName + " from the card '" + card.name + "' on '" + board.name + "'";
+            message = creator.fullName + " removed " + member.fullName + " from the card '" + card.name + "'";
         } else console.log(action);
 
         if (message) {
             for (const room of rooms) {
-                this.sendHtmlMessage(room.roomId, message);
+                const roomDefaults = await this.defaultsManager.getRoomDefaults(room.roomId);
+                let roomMessage = message;
+                if (roomDefaults.boardId !== board.id) {
+                    roomMessage += ` on '${board.name}'`;
+                }
+                this.sendHtmlMessage(room.roomId, roomMessage);
             }
         }
     }
