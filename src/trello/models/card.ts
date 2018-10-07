@@ -1,5 +1,5 @@
 export interface TrelloCard {
-    shortLink: string;
+    shortUrl: string;
     id: string;
     name: string;
     idShort: number;

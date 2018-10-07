@@ -4,7 +4,9 @@ import { LogService } from "matrix-js-snippets";
 
 export interface RoomOptions {
     boardId: string;
+    listId: string;
     boardAliases: { [boardId: string]: string };
+    listAliases: { [listId: string]: string };
 }
 
 export class BotOptionsManager {
@@ -17,7 +19,9 @@ export class BotOptionsManager {
     public async calculateNewRoomOptions(roomId: string): Promise<RoomOptions> {
         const roomOptions: RoomOptions = {
             boardId: null,
+            listId: null,
             boardAliases: {},
+            listAliases: {},
         };
 
         try {
@@ -27,7 +31,9 @@ export class BotOptionsManager {
             } else {
                 if (state["trello"]) {
                     roomOptions.boardId = state["trello"]["defaultBoardId"];
+                    roomOptions.listId = state["trello"]["defaultListId"];
                     roomOptions.boardAliases = state["trello"]["boardAliases"];
+                    roomOptions.listAliases = state["trello"]["listAliases"];
                 }
             }
         } catch (e) {
@@ -47,6 +53,7 @@ export class BotOptionsManager {
         }
 
         if (!roomOptions.boardAliases) roomOptions.boardAliases = {};
+        if (!roomOptions.listAliases) roomOptions.listAliases = {};
 
         LogService.verbose("BotOptionsManager", "New options for " + roomId + " are: " + JSON.stringify(roomOptions));
         this.cachedOptions[roomId] = roomOptions;
@@ -64,6 +71,16 @@ export class BotOptionsManager {
         const current = await this.getRoomOptions(roomId);
         const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
         newOptions.boardId = boardId;
+        newOptions.listId = null;
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async setDefaultListId(roomId: string, listId: string): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        newOptions.listId = listId;
 
         await this.setRoomOptions(roomId, newOptions);
         return this.calculateNewRoomOptions(roomId);
@@ -74,6 +91,16 @@ export class BotOptionsManager {
         const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
         if (!newOptions.boardAliases) newOptions.boardAliases = {};
         newOptions.boardAliases[boardId] = alias;
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async setListAlias(roomId: string, listId: string, alias: string): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        if (!newOptions.listAliases) newOptions.listAliases = {};
+        newOptions.listAliases[listId] = alias;
 
         await this.setRoomOptions(roomId, newOptions);
         return this.calculateNewRoomOptions(roomId);
@@ -94,7 +121,9 @@ export class BotOptionsManager {
         }
         current["trello"] = {
             defaultBoardId: options.boardId,
+            defaultListId: options.listId,
             boardAliases: options.boardAliases,
+            listAliases: options.listAliases,
         };
         return this.client.sendStateEvent(roomId, "m.room.bot.options", stateKey, current);
     }

@@ -4,6 +4,8 @@ import { OAuthHandler } from "../web/OAuth";
 import config from "../config";
 import * as request from "request";
 import { TrelloType } from "./models/type";
+import { TrelloList } from "./models/list";
+import { TrelloCard } from "./models/card";
 
 export class Trello {
     private constructor() {
@@ -45,6 +47,29 @@ export class Trello {
 
     public static removeMemberFromBoard(token: TrelloToken, boardId: string, memberId: string): Promise<any> {
         return OAuthHandler.authedDelete(token, "/1/boards/" + boardId + "/members/" + memberId);
+    }
+
+    public static getLists(token: TrelloToken, boardId: string, type: "all" | "closed" | "none" | "open" = "open"): Promise<TrelloList[]> {
+        return OAuthHandler.authedGet(token, "/1/boards/" + boardId + "/lists/" + type);
+    }
+
+    public static async getList(token: TrelloToken, boardId: string, listId: string): Promise<TrelloList> {
+        const lists = await this.getLists(token, boardId);
+        const list = lists.find(s => s.id === listId);
+        if (list) return list;
+        else throw new Error("List not found");
+    }
+
+    public static async createList(token: TrelloToken, boardId: string, name: string): Promise<TrelloList> {
+        return OAuthHandler.authedPost(token, "/1/boards/" + boardId + "/lists", {}, {name: name});
+    }
+
+    public static async deleteList(token: TrelloToken, boardId: string, listId: string): Promise<any> {
+        return OAuthHandler.authedPut(token, "/1/lists/" + listId + "/closed", {}, {value: true});
+    }
+
+    public static async getCards(token: TrelloToken, boardId: string, listId: string): Promise<TrelloCard[]> {
+        return OAuthHandler.authedGet(token, "/1/lists/" + listId + "/cards");
     }
 
     public static newWebhook(token: TrelloToken, idModel: string, callbackUrl: string, description: string): Promise<{ id: string }> {
