@@ -110,6 +110,11 @@ export class CommandProcessor {
             return this.sendHtmlMessage(roomId, "Board not found. Please verify the URL and try again.");
         }
 
+        const existingBoards = await BoardRooms.findAll({where: {boardId: board.id, roomId: roomId}});
+        if (existingBoards && existingBoards.length > 0) {
+            return this.sendHtmlReply(roomId, event, "That board is already being watched in this room");
+        }
+
         try {
             const webhook = await Trello.newWebhook(token, board.id, Webserver.getWebhookUrl(), "Matrix Trello Bot");
             await TrelloWebhook.create({boardId: board.id, webhookId: webhook.id});
