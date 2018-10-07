@@ -7,6 +7,7 @@ import { Webserver } from "./web/Webserver";
 import TrelloWebhook from "./db/models/TrelloWebhook";
 import BoardRooms from "./db/models/BoardRooms";
 import { BotOptionsManager } from "./BotOptionsManager";
+import { TrelloBoard } from "./trello/models/board";
 import striptags = require("striptags");
 
 export class CommandProcessor {
@@ -56,42 +57,50 @@ export class CommandProcessor {
                     return this.doSetDefaultBoardCommand(roomId, event, args[1]);
                 }
             } else if (command === "board") {
+                if (args.length < 2) {
+                    return this.sendHtmlReply(roomId, event, "Too few arguments. See <code>!trello help</code>");
+                }
+
                 if (args[0] === "create") {
-                    if (!args[1]) {
-                        return this.sendHtmlReply(roomId, event, "Please specify a board name. Eg: <code>!trello board create My Cool Board</code>");
-                    }
                     return this.doCreateBoardCommand(roomId, event, args.splice(1).join(" "));
                 }
-                if (!args[0]) {
-                    return this.sendHtmlReply(roomId, event, "Please specify a board URL. Eg: <code>!trello board https://trello.com/b/abc123/your-board [...]</code>");
-                }
-                if (!args[1]) {
-                    return this.sendHtmlReply(roomId, event, "Please specify an action. Eg: <code>!trello board https://trello.com/b/abc123/your-board alias MyBoardName</code>");
-                }
+
+                const handleInvite = (board, username) => {
+                    if (!username) {
+                        return this.sendHtmlReply(roomId, event, "Please specify a username. Eg: <code>!trello board https://trello.com/b/abc123/your-board invite yourfriend</code>");
+                    }
+                    return this.doInviteToBoardCommand(roomId, event, board, username);
+                };
+                if (args[0] === "invite") return handleInvite(null, args[1]);
+                if (args[1] === "invite") return handleInvite(args[0], args[2]);
+
+                const handleRemove = (board, username) => {
+                    if (!username) {
+                        return this.sendHtmlReply(roomId, event, "Please specify a username. Eg: <code>!trello board https://trello.com/b/abc123/your-board remove yourfriend</code>");
+                    }
+                    return this.doRemoveFromBoardCommand(roomId, event, board, username);
+                };
+                if (args[0] === "remove") return handleRemove(null, args[1]);
+                if (args[1] === "remove") return handleRemove(args[0], args[2]);
+
                 if (args[1] === "alias") {
                     if (!args[2]) {
                         return this.sendHtmlReply(roomId, event, "Please specify an alternative name for the board. Eg: <code>!trello board https://trello.com/b/abc123/your-board alias MyBoardName</code>");
                     }
                     return this.doAliasBoardCommand(roomId, event, args[0], args[2]);
-                } else if (args[1] === "delete") {
+                }
+
+                if (args[1] === "delete") {
                     return this.doDeleteBoardCommand(roomId, event, args[0]);
-                } else if (args[1] === "invite") {
-                    if (!args[2]) {
-                        return this.sendHtmlReply(roomId, event, "Please specify a username. Eg: <code>!trello board https://trello.com/b/abc123/your-board invite yourfriend</code>");
-                    }
-                    return this.doInviteToBoardCommand(roomId, event, args[0], args[2]);
-                } else if (args[1] === "remove") {
-                    if (!args[2]) {
-                        return this.sendHtmlReply(roomId, event, "Please specify a username. Eg: <code>!trello board https://trello.com/b/abc123/your-board remove yourfriend</code>");
-                    }
-                    return this.doRemoveFromBoardCommand(roomId, event, args[0], args[2]);
-                } else return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
+                }
+
+                return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
             } else {
                 const htmlMessage = "" +
                     "<h4>Authorization</h4>" +
                     "<pre><code>" +
-                    `!trello login                      - Generates a link for you to click and authorize the bot\n` +
-                    `!trello logout                     - Invalidates and deletes all previously authorized tokens\n` +
+                    `!trello login      - Generates a link for you to click and authorize the bot\n` +
+                    `!trello logout     - Invalidates and deletes all previously authorized tokens\n` +
                     "</code></pre>" +
                     "<h4>Watching boards</h4>" +
                     "<pre><code>" +
@@ -102,11 +111,11 @@ export class CommandProcessor {
                     "</code></pre>" +
                     "<h4>Board management</h4>" +
                     "<pre><code>" +
-                    `!trello board &lt;board url&gt; alias &lt;new name&gt;  - Sets an alias for the given board\n` +
+                    `!trello board &lt;board url&gt; alias &lt;new name&gt;        - Sets an alias for the given board\n` +
                     `!trello board create &lt;name&gt;                       - Creates a new board\n` +
-                    `!trello board &lt;board url&gt; delete                  - Deletes a board\n` +
-                    `!trello board &lt;board url&gt; invite &lt;username&gt; - Invite a user to the board\n` +
-                    `!trello board &lt;board url&gt; remove &lt;username&gt; - Remove a user from the board\n` +
+                    `!trello board &lt;board url/alias&gt; delete            - Deletes a board\n` +
+                    `!trello board [board url/alias] invite &lt;username&gt; - Invite a user to the board\n` +
+                    `!trello board [board url/alias] remove &lt;username&gt; - Remove a user from the board\n` +
                     "</code></pre>" +
                     "<br/><p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
                 return this.sendHtmlReply(roomId, event, htmlMessage);
@@ -115,6 +124,41 @@ export class CommandProcessor {
             LogService.error("CommandProcessor", err);
             return this.sendHtmlReply(roomId, event, "There was an error processing your command");
         }
+    }
+
+    private async findBoardByReference(roomId: string, token: TrelloToken, reference: string): Promise<TrelloBoard> {
+        const roomOptions = await this.optionsManager.getRoomOptions(roomId);
+        for (const boardId in roomOptions.boardAliases) {
+            const alias = roomOptions.boardAliases[boardId];
+            if (alias === reference) {
+                return Trello.getBoard(token, boardId).catch(e => {
+                    LogService.error("CommandProcessor#findBoardByReference", e);
+                    return null;
+                });
+            }
+        }
+
+        return Trello.idOrUrlToBoard(token, reference).catch(e => {
+            LogService.error("CommandProcessor#findBoardByReference", e);
+            return null;
+        });
+    }
+
+    private async findOrUseDefaultBoard(roomId: string, token: TrelloToken, reference: string): Promise<TrelloBoard> {
+        if (!reference) {
+            const roomOptions = await this.optionsManager.getRoomOptions(roomId);
+            if (roomOptions.boardId) {
+                return Trello.getBoard(token, roomOptions.boardId).catch(e => {
+                    LogService.error("CommandProcessor#findOrUseDefaultBoard", e);
+                    return null;
+                });
+            }
+        }
+
+        return this.findBoardByReference(roomId, token, reference).catch(e => {
+            LogService.error("CommandProcessor#findOrUseDefaultBoard", e);
+            return null;
+        });
     }
 
     private sendHtmlReply(roomId: string, event: any, message: string): Promise<any> {
@@ -233,8 +277,15 @@ export class CommandProcessor {
         let boards = await BoardRooms.findAll({where: {roomId: inRoomId}});
         if (!boards) boards = [];
 
+        const roomOptions = await this.optionsManager.getRoomOptions(roomId);
+
         let message = "The watched boards are:<br /><ul>" +
-            "<li>" + boards.map(b => `${b.boardId.substring(0, 6)} ${b.boardUrl ? `<a href="${b.boardUrl}">` : ""}${b.boardName ? b.boardName : "&lt;No Name&gt;"}${b.boardUrl ? "</a>" : ""}`).join("</li><li>") + "</li>" +
+            "<li>" + boards.map(b => {
+                const name = b.boardName ? b.boardName : "&lt;No Name&gt;";
+                const url = b.boardUrl ? `<a href="${b.boardUrl}">${name}</a>` : name;
+                const alias = roomOptions.boardAliases[b.boardId] ? `(Alias: ${roomOptions.boardAliases[b.boardId]})` : "";
+                return `${url} ${alias}`;
+            }).join("</li><li>") + "</li>" +
             "</ul>";
         if (boards.length === 0) message = "There are no watched boards.";
 
@@ -329,13 +380,13 @@ export class CommandProcessor {
         return this.sendHtmlReply(roomId, event, "Board created: " + board.shortUrl);
     }
 
-    private async doDeleteBoardCommand(roomId: string, event: any, boardUrl: string): Promise<any> {
+    private async doDeleteBoardCommand(roomId: string, event: any, boardRef: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
             return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
-        const board = await Trello.idOrUrlToBoard(token, boardUrl);
+        const board = await this.findBoardByReference(roomId, token, boardRef);
         if (!board) {
             return this.sendHtmlReply(roomId, event, "Board not found");
         }
@@ -344,13 +395,13 @@ export class CommandProcessor {
         return this.sendHtmlReply(roomId, event, "Board deleted");
     }
 
-    private async doInviteToBoardCommand(roomId: string, event: any, boardUrl: string, username: string): Promise<any> {
+    private async doInviteToBoardCommand(roomId: string, event: any, boardRef: string, username: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
             return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
-        const board = await Trello.idOrUrlToBoard(token, boardUrl);
+        const board = await this.findOrUseDefaultBoard(roomId, token, boardRef);
         if (!board) {
             return this.sendHtmlReply(roomId, event, "Board not found");
         }
@@ -368,16 +419,16 @@ export class CommandProcessor {
         }
 
         await Trello.inviteMemberToBoard(token, board.id, memberId, "normal");
-        return this.sendHtmlReply(roomId, event, "Member invited");
+        return this.sendHtmlReply(roomId, event, `${username} has been invited to ${board.name}`);
     }
 
-    private async doRemoveFromBoardCommand(roomId: string, event: any, boardUrl: string, username: string): Promise<any> {
+    private async doRemoveFromBoardCommand(roomId: string, event: any, boardRef: string, username: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
             return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
-        const board = await Trello.idOrUrlToBoard(token, boardUrl);
+        const board = await this.findOrUseDefaultBoard(roomId, token, boardRef);
         if (!board) {
             return this.sendHtmlReply(roomId, event, "Board not found");
         }
@@ -395,6 +446,6 @@ export class CommandProcessor {
         }
 
         await Trello.removeMemberFromBoard(token, board.id, memberId);
-        return this.sendHtmlReply(roomId, event, "Member removed");
+        return this.sendHtmlReply(roomId, event, `${username} has been removed from ${board.name}`);
     }
 }
