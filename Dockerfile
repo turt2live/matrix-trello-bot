@@ -1,7 +1,7 @@
 FROM node:alpine
 COPY . /tmp/src
 WORKDIR /tmp/src
-RUN apk add --no-cache -t build-deps make gcc g++ python ca-certificates libc-dev wget \
+RUN apk add --no-cache -t build-deps make gcc g++ python ca-certificates libc-dev wget git \
     && npm install \
     && npm run build \
     && mv lib/ /matrix-trello-bot/ \
