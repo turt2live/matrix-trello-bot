@@ -2,10 +2,19 @@ import TrelloToken from "../db/models/TrelloToken";
 import { TrelloBoard } from "./models/board";
 import { OAuthHandler } from "../web/OAuth";
 import config from "../config";
-import request = require("request");
+import * as request from "request";
+import { TrelloType } from "./models/type";
 
 export class Trello {
     private constructor() {
+    }
+
+    public static getType(token: TrelloToken, resource: string): Promise<TrelloType> {
+        return OAuthHandler.authedGet(token, "/1/types/" + resource);
+    }
+
+    public static createBoard(token: TrelloToken, boardName: string, options: any = {}): Promise<TrelloBoard> {
+        return OAuthHandler.authedPost(token, "/1/boards", {}, Object.assign({name: boardName}, options));
     }
 
     public static getBoards(token: TrelloToken): Promise<TrelloBoard[]> {
@@ -16,6 +25,10 @@ export class Trello {
         return OAuthHandler.authedGet(token, "/1/boards/" + boardId);
     }
 
+    public static deleteBoard(token: TrelloToken, boardId: string): Promise<any> {
+        return OAuthHandler.authedDelete(token, "/1/boards/" + boardId);
+    }
+
     public static async idOrUrlToBoard(token: TrelloToken, reference: string): Promise<TrelloBoard> {
         const boards = await this.getBoards(token);
         for (const board of boards) {
@@ -24,6 +37,14 @@ export class Trello {
         }
 
         return null;
+    }
+
+    public static inviteMemberToBoard(token: TrelloToken, boardId: string, memberId: string, memberRole: "admin" | "normal" | "observer"): Promise<any> {
+        return OAuthHandler.authedPut(token, "/1/boards/" + boardId + "/members/" + memberId, {}, {type: memberRole});
+    }
+
+    public static removeMemberFromBoard(token: TrelloToken, boardId: string, memberId: string): Promise<any> {
+        return OAuthHandler.authedDelete(token, "/1/boards/" + boardId + "/members/" + memberId);
     }
 
     public static newWebhook(token: TrelloToken, idModel: string, callbackUrl: string, description: string): Promise<{ id: string }> {

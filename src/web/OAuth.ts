@@ -2,6 +2,7 @@ import { OAuth } from "oauth";
 import config from "../config";
 import { LogService } from "matrix-js-snippets";
 import TrelloToken from "../db/models/TrelloToken";
+import * as querystring from "querystring";
 
 class _OAuth {
     private oauth: any;
@@ -55,7 +56,8 @@ class _OAuth {
         });
     }
 
-    public authedGet(token: TrelloToken, endpoint: string): Promise<any> {
+    public authedGet(token: TrelloToken, endpoint: string, qs: any = {}): Promise<any> {
+        endpoint += "?" + querystring.stringify(qs);
         return new Promise((resolve, reject) => {
             this.oauth.get("https://api.trello.com" + endpoint, token.token, token.tokenSecret, (err, data, response) => {
                 if (typeof data === "string") data = JSON.parse(data);
@@ -65,9 +67,32 @@ class _OAuth {
         });
     }
 
-    public authedPost(token: TrelloToken, endpoint: string, body: any): Promise<any> {
+    public authedDelete(token: TrelloToken, endpoint: string, qs: any = {}): Promise<any> {
+        endpoint += "?" + querystring.stringify(qs);
+        return new Promise((resolve, reject) => {
+            this.oauth.delete("https://api.trello.com" + endpoint, token.token, token.tokenSecret, (err, data, response) => {
+                if (typeof data === "string") data = JSON.parse(data);
+                if (!err) resolve(data);
+                else reject(err);
+            });
+        });
+    }
+
+    public authedPost(token: TrelloToken, endpoint: string, body: any, qs: any = {}): Promise<any> {
+        endpoint += "?" + querystring.stringify(qs);
         return new Promise((resolve, reject) => {
             this.oauth.post("https://api.trello.com" + endpoint, token.token, token.tokenSecret, JSON.stringify(body), "application/json", (err, data, response) => {
+                if (typeof data === "string") data = JSON.parse(data);
+                if (!err) resolve(data);
+                else reject(err);
+            });
+        });
+    }
+
+    public authedPut(token: TrelloToken, endpoint: string, body: any, qs: any = {}): Promise<any> {
+        endpoint += "?" + querystring.stringify(qs);
+        return new Promise((resolve, reject) => {
+            this.oauth.put("https://api.trello.com" + endpoint, token.token, token.tokenSecret, JSON.stringify(body), "application/json", (err, data, response) => {
                 if (typeof data === "string") data = JSON.parse(data);
                 if (!err) resolve(data);
                 else reject(err);

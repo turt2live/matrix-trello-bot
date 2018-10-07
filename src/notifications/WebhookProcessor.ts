@@ -5,11 +5,11 @@ import BoardRooms from "../db/models/BoardRooms";
 import { TrelloCard } from "../trello/models/card";
 import { TrelloList } from "../trello/models/list";
 import { TrelloMember } from "../trello/models/member";
-import { DefaultsManager } from "../DefaultsManager";
+import { BotOptionsManager } from "../BotOptionsManager";
 import striptags = require("striptags");
 
 export class WebhookProcessor {
-    constructor(private client: MatrixClient, private defaultsManager: DefaultsManager) {
+    constructor(private client: MatrixClient, private optionsManager: BotOptionsManager) {
         PubSub.subscribe("webhook", this.onWebhook.bind(this));
     }
 
@@ -76,7 +76,7 @@ export class WebhookProcessor {
 
         if (message) {
             for (const room of rooms) {
-                const roomDefaults = await this.defaultsManager.getRoomDefaults(room.roomId);
+                const roomDefaults = await this.optionsManager.getRoomOptions(room.roomId);
                 let roomMessage = message;
                 if (roomDefaults.boardId !== board.id) {
                     roomMessage += ` on '${board.name}'`;
