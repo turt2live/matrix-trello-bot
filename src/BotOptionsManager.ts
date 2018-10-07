@@ -81,9 +81,21 @@ export class BotOptionsManager {
 
     private async setRoomOptions(roomId: string, options: RoomOptions): Promise<any> {
         const stateKey = "_" + (await this.client.getUserId());
-        return this.client.sendStateEvent(roomId, "m.room.bot.options", stateKey, {
+        let current = {};
+        try {
+            current = await this.client.getRoomStateEvents(roomId, "m.room.bot.options", stateKey);
+        } catch (e) {
+            if (e["body"] && typeof(e["body"]) === "string") e["body"] = JSON.parse(e["body"]);
+            if (e["body"] && e["body"]["errcode"] === "M_NOT_FOUND") {
+                current = {};
+            } else {
+                throw e;
+            }
+        }
+        current["trello"] = {
             defaultBoardId: options.boardId,
             boardAliases: options.boardAliases,
-        });
+        };
+        return this.client.sendStateEvent(roomId, "m.room.bot.options", stateKey, current);
     }
 }
