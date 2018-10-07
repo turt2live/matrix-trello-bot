@@ -1,4 +1,4 @@
-import { MatrixClient } from "matrix-bot-sdk";
+import { MatrixClient, RichReply } from "matrix-bot-sdk";
 import TrelloToken from "./db/models/TrelloToken";
 import { OAuthHandler } from "./web/OAuth";
 import { LogService } from "matrix-js-snippets";
@@ -30,12 +30,12 @@ export class CommandProcessor {
                 return this.doLogoutCommand(roomId, event);
             } else if (command === "watch") {
                 if (!args[0]) {
-                    return this.sendHtmlMessage(roomId, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
+                    return this.sendHtmlReply(roomId, event, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
                 }
                 return this.doWatchBoardCommand(roomId, event, args[0]);
             } else if (command === "unwatch") {
                 if (!args[0]) {
-                    return this.sendHtmlMessage(roomId, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
+                    return this.sendHtmlReply(roomId, event, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
                 }
                 return this.doUnwatchBoardCommand(roomId, event, args[0]);
             } else {
@@ -47,36 +47,33 @@ export class CommandProcessor {
                     "!trello help                 - This menu\n" +
                     "</code></pre></p>" +
                     "<p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
-                return this.sendHtmlMessage(roomId, htmlMessage);
+                return this.sendHtmlReply(roomId, event, htmlMessage);
             }
         } catch (err) {
             LogService.error("CommandProcessor", err);
-            return this.sendHtmlMessage(roomId, "There was an error processing your command");
+            return this.sendHtmlReply(roomId, event, "There was an error processing your command");
         }
     }
 
-    private sendHtmlMessage(roomId: string, message: string): Promise<any> {
-        return Promise.resolve(this.client.sendMessage(roomId, {
-            msgtype: "m.notice",
-            body: striptags(message),
-            format: "org.matrix.custom.html",
-            formatted_body: message,
-        }));
+    private sendHtmlReply(roomId: string, event: any, message: string): Promise<any> {
+        const reply = RichReply.createFor(event, striptags(message), message);
+        reply["msgtype"] = "m.notice";
+        return this.client.sendMessage(roomId, reply);
     }
 
     private async doLoginCommand(roomId: string, event: any): Promise<any> {
         const members = await this.client.getJoinedRoomMembers(roomId);
         if (members.length !== 2) {
-            return this.sendHtmlMessage(roomId, "This room is not a private chat and therefor cannot be used to log in.");
+            return this.sendHtmlReply(roomId, event, "This room is not a private chat and therefor cannot be used to log in.");
         }
 
         const url = await OAuthHandler.getAuthUrl(async (username: string, token: string, tokenSecret: string) => {
             await TrelloToken.create({userId: event['sender'], token: token, tokenSecret: tokenSecret});
-            await this.sendHtmlMessage(roomId, "Thanks " + username + "! You've authorized me to use your account.");
+            await this.sendHtmlReply(roomId, event, "Thanks " + username + "! You've authorized me to use your account.");
         });
 
         const message = 'Please click here to authorize me to use your account: <a href="' + url + '">' + url + '</a>';
-        return this.sendHtmlMessage(roomId, message);
+        return this.sendHtmlReply(roomId, event, message);
     }
 
     private async doLogoutCommand(roomId: string, event: any): Promise<any> {
@@ -95,19 +92,19 @@ export class CommandProcessor {
         }
 
         const message = 'Your have been logged out.';
-        return this.sendHtmlMessage(roomId, message);
+        return this.sendHtmlReply(roomId, event, message);
     }
 
     private async doWatchBoardCommand(roomId: string, event: any, boardUrl: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
-            return this.sendHtmlMessage(roomId, "You must authorize me to use your account before you can run this command.");
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
         const boards = await Trello.getBoards(token);
         const board = boards.find(b => boardUrl.startsWith(b.shortUrl));
         if (!board) {
-            return this.sendHtmlMessage(roomId, "Board not found. Please verify the URL and try again.");
+            return this.sendHtmlReply(roomId, event, "Board not found. Please verify the URL and try again.");
         }
 
         const existingBoards = await BoardRooms.findAll({where: {boardId: board.id, roomId: roomId}});
@@ -123,19 +120,19 @@ export class CommandProcessor {
         }
 
         await BoardRooms.create({boardId: board.id, roomId: roomId});
-        return this.sendHtmlMessage(roomId, "This room will be notified when activity on the board happens.");
+        return this.sendHtmlReply(roomId, event, "This room will be notified when activity on the board happens.");
     }
 
     private async doUnwatchBoardCommand(roomId: string, event: any, boardUrl: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
-            return this.sendHtmlMessage(roomId, "You must authorize me to use your account before you can run this command.");
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
         }
 
         const boards = await Trello.getBoards(token);
         const board = boards.find(b => boardUrl.startsWith(b.shortUrl));
         if (!board) {
-            return this.sendHtmlMessage(roomId, "Board not found. Please verify the URL and try again.");
+            return this.sendHtmlReply(roomId, event, "Board not found. Please verify the URL and try again.");
         }
 
         const webhooks = await TrelloWebhook.findAll({where: {boardId: board.id}});
@@ -149,6 +146,6 @@ export class CommandProcessor {
             await mapping.destroy();
         }
 
-        return this.sendHtmlMessage(roomId, "That board will no longer notify this room of any activity.");
+        return this.sendHtmlReply(roomId, event, "That board will no longer notify this room of any activity.");
     }
 }
