@@ -12,6 +12,10 @@ export class Trello {
         return OAuthHandler.authedGet(token, "/1/members/me/boards");
     }
 
+    public static getBoard(token: TrelloToken, boardId: string): Promise<TrelloBoard> {
+        return OAuthHandler.authedGet(token, "/1/boards/" + boardId);
+    }
+
     public static newWebhook(token: TrelloToken, idModel: string, callbackUrl: string, description: string): Promise<{ id: string }> {
         return new Promise((resolve, reject) => {
             request({

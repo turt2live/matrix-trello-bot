@@ -38,12 +38,19 @@ export class CommandProcessor {
                     return this.sendHtmlReply(roomId, event, "Please specify a board URL. Eg: <code>!trello watch https://trello.com/b/abc123/your-board</code>");
                 }
                 return this.doUnwatchBoardCommand(roomId, event, args[0]);
+            } else if (command === "boards") {
+                let inRoom = roomId;
+                if (args[0]) {
+                    inRoom = args[0];
+                }
+                return this.doListBoardsCommand(roomId, inRoom, event);
             } else {
                 const htmlMessage = "<p>Trello bot help:<br /><pre><code>" +
                     `!trello login                - Generates a link for you to click and authorize the bot\n` +
                     `!trello logout               - Invalidates and deletes all previously authorized tokens\n` +
                     `!trello watch &lt;board url&gt;    - Watches the given board in this room\n` +
                     `!trello unwatch &lt;board url&gt;  - Unwatches the given board in this room\n` +
+                    `!trello boards [room]        - Lists the boards being watched in the room\n` +
                     "!trello help                 - This menu\n" +
                     "</code></pre></p>" +
                     "<p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
@@ -119,7 +126,7 @@ export class CommandProcessor {
             if (err !== "A webhook with that callback, model, and token already exists") throw err;
         }
 
-        await BoardRooms.create({boardId: board.id, roomId: roomId});
+        await BoardRooms.create({boardId: board.id, roomId: roomId, boardUrl: board.shortUrl, boardName: board.name});
         return this.sendHtmlReply(roomId, event, "This room will be notified when activity on the board happens.");
     }
 
@@ -147,5 +154,36 @@ export class CommandProcessor {
         }
 
         return this.sendHtmlReply(roomId, event, "That board will no longer notify this room of any activity.");
+    }
+
+    private async doListBoardsCommand(roomId: string, inRoom: string, event: any): Promise<any> {
+        const inRoomId = await this.client.resolveRoom(inRoom);
+
+        // Make sure the user is a member of the room
+        try {
+            const members = await this.client.getJoinedRoomMembers(inRoomId);
+            if (members.indexOf(event["sender"]) === -1) {
+                return this.sendHtmlReply(roomId, event, "You are not in that room.");
+            }
+        } catch (e) {
+            if (e["body"] && typeof(e["body"]) === "string") {
+                e["body"] = JSON.parse(e["body"]);
+            }
+            if (e["body"] && e["body"]["errcode"]) {
+                return this.sendHtmlReply(roomId, event, "Error retrieving room members - am I in the room?");
+            }
+            throw e;
+        }
+
+        // Get board information
+        let boards = await BoardRooms.findAll({where: {roomId: inRoomId}});
+        if (!boards) boards = [];
+
+        let message = "The watched boards are:<br /><ul>" +
+            "<li>" + boards.map(b => `${b.boardId.substring(0, 6)} ${b.boardUrl ? `<a href="${b.boardUrl}">` : ""}${b.boardName ? b.boardName : "&lt;No Name&gt;"}${b.boardUrl ? "</a>" : ""}`).join("</li><li>") + "</li>" +
+            "</ul>";
+        if (boards.length === 0) message = "There are no watched boards.";
+
+        return this.sendHtmlReply(roomId, event, message);
     }
 }

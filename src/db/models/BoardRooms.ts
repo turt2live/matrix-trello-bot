@@ -1,4 +1,4 @@
-import { AutoIncrement, Column, Model, PrimaryKey, Table } from "sequelize-typescript";
+import { AllowNull, AutoIncrement, Column, Model, PrimaryKey, Table } from "sequelize-typescript";
 
 @Table({
     tableName: "trello_boards_to_rooms",
@@ -16,4 +16,12 @@ export default class BoardRooms extends Model<BoardRooms> {
 
     @Column
     roomId: string;
+
+    @AllowNull
+    @Column
+    boardUrl: string;
+
+    @AllowNull
+    @Column
+    boardName: string;
 }
