@@ -43,7 +43,7 @@ export class CommandProcessor {
                     `!trello login                - Generates a link for you to click and authorize the bot\n` +
                     `!trello logout               - Invalidates and deletes all previously authorized tokens\n` +
                     `!trello watch &lt;board url&gt;    - Watches the given board in this room\n` +
-                    `!trello unwatch &lt;board url&gt;  - Watches the given board in this room\n` +
+                    `!trello unwatch &lt;board url&gt;  - Unwatches the given board in this room\n` +
                     "!trello help                 - This menu\n" +
                     "</code></pre></p>" +
                     "<p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
