@@ -9,6 +9,8 @@ import BoardRooms from "./db/models/BoardRooms";
 import { BotOptionsManager } from "./BotOptionsManager";
 import { TrelloBoard } from "./trello/models/board";
 import { TrelloList } from "./trello/models/list";
+import { parseQuotedArgumentsBackwards } from "./utils";
+import { TrelloCard } from "./trello/models/card";
 import striptags = require("striptags");
 
 export class CommandProcessor {
@@ -125,6 +127,65 @@ export class CommandProcessor {
                 if (args[1] === "delete") return this.doListDeleteCommand(roomId, event, args[0], args.splice(2).join(" "));
 
                 return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
+            } else if (command === "card") {
+                if (args.length < 2) {
+                    return this.sendHtmlReply(roomId, event, "Too few arguments. Try <code>!trello help</code>");
+                }
+
+                if (args[0] === "add") {
+                    const combined = args.splice(1).join(" ");
+                    const newArgs = parseQuotedArgumentsBackwards(combined, 1);
+                    if (newArgs.length < 1) {
+                        return this.sendHtmlReply(roomId, event, "Missing arguments. Try <code>!trello help</code>");
+                    }
+
+                    const ref = newArgs.length > 1 ? newArgs[1] : null;
+                    return this.doCardAddCommand(roomId, event, newArgs[0], ref);
+                }
+
+                if (args[0] === "assign") {
+                    if (args.length < 2) {
+                        return this.sendHtmlReply(roomId, event, "Missing arguments. Try <code>!trello help</code>");
+                    }
+
+                    const assignee = args[args.length - 1];
+                    const cardId = args[args.length - 2];
+                    const boardListRef = args.splice(1, args.length - 3).join(" ");
+                    return this.doCardAssignCommand(roomId, event, cardId, assignee, boardListRef);
+                }
+
+                if (args[0] === "unassign") {
+                    if (args.length < 2) {
+                        return this.sendHtmlReply(roomId, event, "Missing arguments. Try <code>!trello help</code>");
+                    }
+
+                    const assignee = args[args.length - 1];
+                    const cardId = args[args.length - 2];
+                    const boardListRef = args.splice(1, args.length - 3).join(" ");
+                    return this.doCardUnassignCommand(roomId, event, cardId, assignee, boardListRef);
+                }
+
+                if (args[0] === "move") {
+                    if (args.length < 4) {
+                        return this.sendHtmlReply(roomId, event, "Missing arguments. Try <code>!trello help</code>");
+                    }
+
+                    const cardId = args[1];
+                    const boardListRefs = args.splice(2).join(" ");
+                    return this.doCardMoveCommand(roomId, event, cardId, boardListRefs);
+                }
+
+                if (args[0] === "archive") {
+                    if (args.length < 2) {
+                        return this.sendHtmlReply(roomId, event, "Missing arguments. Try <code>!trello help</code>");
+                    }
+
+                    const cardId = args[args.length - 1];
+                    const boardListRef = args.splice(1, args.length - 2).join(" ");
+                    return this.doCardArchiveCommand(roomId, event, cardId, boardListRef);
+                }
+
+                return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
             } else {
                 const htmlMessage = "" +
                     "<h4>Authorization</h4>" +
@@ -152,6 +213,14 @@ export class CommandProcessor {
                     `!trello list [board url/alias] create &lt;name&gt;                 - Creates a new list on a board\n` +
                     `!trello list [board url/alias] delete &lt;list name/alias&gt;      - Deletes a list from a board\n` +
                     `!trello list [board url/alias] cards [list name/alias]       - Lists the active cards in a list on a board\n` +
+                    "</code></pre>" +
+                    "<h4>Card management</h4>" +
+                    "<pre><code>" +
+                    `!trello card add [board url/alias] [list name/alias] &lt;title&gt;                              - Adds a new card to a list\n` +
+                    `!trello card assign [board url/alias] [list name/alias] &lt;card ID&gt; &lt;assignee&gt;               - Adds a user to a card\n` +
+                    `!trello card unassign [board url/alias] [list name/alias] &lt;card ID&gt; &lt;assignee&gt;             - Removes a user from a card\n` +
+                    `!trello card move &lt;card ID&gt; [board url/alias] &lt;from list name/alias&gt; &lt;to list name/alias&gt;  - Moves a card\n` +
+                    `!trello card archive [board url/alias] [list name/alias] &lt;card ID&gt;                         - Archives/closes a card\n` +
                     "</code></pre>" +
                     "<br/><p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
                 return this.sendHtmlReply(roomId, event, htmlMessage);
@@ -228,6 +297,111 @@ export class CommandProcessor {
         }
 
         return this.findListByReference(roomId, token, board, reference);
+    }
+
+    private async findCardByReference(roomId: string, token: TrelloToken, board: TrelloBoard, list: TrelloList, reference: string): Promise<TrelloCard> {
+        const cards = await Trello.getCards(token, board.id, list.id);
+        for (const card of cards) {
+            if (card.id.endsWith(reference)) return card;
+        }
+
+        return null;
+    }
+
+    private async findBoardAndList(roomId: string, token: TrelloToken, reference: string, expectedLists = 1): Promise<{ board: TrelloBoard, lists: TrelloList[] }> {
+        if (!reference) {
+            LogService.verbose("CommandProcessor#findBoardAndList", "No reference provided - attempting default lookup");
+            const board = await this.findOrUseDefaultBoard(roomId, token, null);
+            return {
+                board: board,
+                lists: [await this.findOrUseDefaultList(roomId, token, board, null)],
+            };
+        }
+
+        const roomOptions = await this.optionsManager.getRoomOptions(roomId);
+        let foundBoard: TrelloBoard = null;
+        let foundLists: TrelloList[] = [];
+        const args = (reference ? reference : "").split(' ');
+        let probableListRef = args.filter((_v, i) => i > 0).join(" ");
+
+        LogService.verbose("CommandProcessor#findBoardAndList", "Using board reference: " + args[0]);
+        LogService.verbose("CommandProcessor#findBoardAndList", "Using list reference: " + probableListRef);
+
+        // First try and match a board
+        const boards = await Trello.getBoards(token);
+        for (const board of boards) {
+            if (args[0].startsWith(board.shortUrl)) {
+                LogService.verbose("CommandProcessor#findBoardAndList", "Found board match: Matched on short URL");
+                foundBoard = board;
+                break;
+            }
+        }
+        if (!foundBoard) {
+            // Try and find the board by reference
+            for (const boardId in roomOptions.boardAliases) {
+                const alias = roomOptions.boardAliases[boardId];
+                if (alias === args[0]) {
+                    LogService.verbose("CommandProcessor#findBoardAndList", "Found board match: Matched on board alias");
+                    foundBoard = boards.find(b => b.id === boardId);
+                    break;
+                }
+            }
+        }
+        if (!foundBoard) {
+            LogService.verbose("CommandProcessor#findBoardAndList", "Failed to find board match: Using whole string as a possible list, and using default board");
+            probableListRef = args.join(' ');
+            foundBoard = await this.findOrUseDefaultBoard(roomId, token, null);
+        }
+
+        LogService.verbose("CommandProcessor#findBoardAndList", "Using list reference: " + probableListRef);
+
+        // Now try to match a list (or several)
+        // Unlike boards, we'll try to match aliases first
+        const lists = await Trello.getLists(token, foundBoard.id);
+        for (const listId in roomOptions.listAliases) {
+            const alias = roomOptions.listAliases[listId];
+            if (expectedLists === 1) {
+                if (alias === probableListRef) {
+                    LogService.verbose("CommandProcessor#findBoardAndList", "Found list match: Found exactly 1 alias match");
+                    foundLists.push(lists.find(s => s.id === listId));
+                    break;
+                }
+            } else {
+                if (probableListRef.startsWith(alias)) {
+                    LogService.verbose("CommandProcessor#findBoardAndList", "Found list match: Found probable alias match");
+                    foundLists.push(lists.find(s => s.id === listId));
+                    if (foundLists.length === expectedLists) break;
+                    probableListRef = probableListRef.substring(alias.length).trim();
+                }
+            }
+        }
+        if (foundLists.length < expectedLists) {
+            for (const list of lists) {
+                if (expectedLists === 1) {
+                    if (list.name.toLowerCase() === probableListRef.toLowerCase()) {
+                        LogService.verbose("CommandProcessor#findBoardAndList", "Found list match: Found exactly 1 name match");
+                        foundLists.push(list);
+                        break;
+                    }
+                } else {
+                    if (probableListRef.toLowerCase().startsWith(list.name.toLowerCase())) {
+                        LogService.verbose("CommandProcessor#findBoardAndList", "Found list match: Found probable name match");
+                        foundLists.push(list);
+                        if (foundLists.length === expectedLists) break;
+                        probableListRef = probableListRef.substring(list.name.length).trim();
+                    }
+                }
+            }
+        }
+        if (foundLists.length < expectedLists) {
+            LogService.verbose("CommandProcessor#findBoardAndList", "Missing " + (expectedLists - foundLists.length) + " lists - using default list");
+            const defaultList = await this.findOrUseDefaultList(roomId, token, foundBoard, null);
+            while (foundLists.length < expectedLists) {
+                foundLists.push(defaultList);
+            }
+        }
+
+        return {board: foundBoard, lists: foundLists};
     }
 
     private sendHtmlReply(roomId: string, event: any, message: string): Promise<any> {
@@ -641,7 +815,7 @@ export class CommandProcessor {
         return this.sendHtmlReply(roomId, event, "List deleted from " + board.shortUrl);
     }
 
-    private async doListCardsCommand(roomId: string, event: any, boardRef: string, listRef: string): Promise<string> {
+    private async doListCardsCommand(roomId: string, event: any, boardRef: string, listRef: string): Promise<any> {
         const token = await TrelloToken.findOne({where: {userId: event['sender']}});
         if (!token) {
             return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
@@ -659,8 +833,113 @@ export class CommandProcessor {
 
         const cards = await Trello.getCards(token, board.id, list.id);
         const message = `<p>Open cards on ${list.name} on <a href="${board.shortUrl}">${board.name}</a>:</p><ul><li>` +
-            cards.map(c => `<a href="${c.shortUrl}">${c.name}</a>`).join("</li><li>") +
+            cards.map(c => `<code>${c.id.substring(c.id.length - 6)}</code> <a href="${c.shortUrl}">${c.name}</a>`).join("</li><li>") +
             `</li></ul>`;
         return this.sendHtmlReply(roomId, event, message);
+    }
+
+    private async doCardAddCommand(roomId: string, event: any, title: string, listBoardRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const boardAndList = await this.findBoardAndList(roomId, token, listBoardRef);
+        if (!boardAndList.board || boardAndList.lists.length !== 1) {
+            return this.sendHtmlReply(roomId, event, "Could not find board or list");
+        }
+
+        const card = await Trello.createCard(token, boardAndList.board.id, boardAndList.lists[0].id, {name: title});
+        return this.sendHtmlReply(roomId, event, "Card created: " + card.shortUrl + " (<code>" + card.id.substring(card.id.length - 6) + "</code>)");
+    }
+
+    private async doCardAssignCommand(roomId: string, event: any, cardRef: string, assignee: string, listBoardRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const boardAndList = await this.findBoardAndList(roomId, token, listBoardRef);
+        if (!boardAndList.board || boardAndList.lists.length !== 1) {
+            return this.sendHtmlReply(roomId, event, "Could not find board or list");
+        }
+
+        const card = await this.findCardByReference(roomId, token, boardAndList.board, boardAndList.lists[0], cardRef);
+        if (!card) {
+            return this.sendHtmlReply(roomId, event, "Card not found");
+        }
+
+        const member = await Trello.getType(token, assignee);
+        if (!member || member.type !== "member") {
+            return this.sendHtmlReply(roomId, event, "User not found");
+        }
+
+        await Trello.assignCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id, member.id);
+        return this.sendHtmlReply(roomId, event, "User added to card");
+    }
+
+    private async doCardUnassignCommand(roomId: string, event: any, cardRef: string, assignee: string, listBoardRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const boardAndList = await this.findBoardAndList(roomId, token, listBoardRef);
+        if (!boardAndList.board || boardAndList.lists.length !== 1) {
+            return this.sendHtmlReply(roomId, event, "Could not find board or list");
+        }
+
+        const card = await this.findCardByReference(roomId, token, boardAndList.board, boardAndList.lists[0], cardRef);
+        if (!card) {
+            return this.sendHtmlReply(roomId, event, "Card not found");
+        }
+
+        const member = await Trello.getType(token, assignee);
+        if (!member || member.type !== "member") {
+            return this.sendHtmlReply(roomId, event, "User not found");
+        }
+
+        await Trello.unassignCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id, member.id);
+        return this.sendHtmlReply(roomId, event, "User removed from card");
+    }
+
+    private async doCardMoveCommand(roomId: string, event: any, cardRef: string, boardListsRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const boardAndLists = await this.findBoardAndList(roomId, token, boardListsRef, 2);
+        if (!boardAndLists.board || boardAndLists.lists.length !== 2) {
+            return this.sendHtmlReply(roomId, event, "Could not find board or lists");
+        }
+
+        const card = await this.findCardByReference(roomId, token, boardAndLists.board, boardAndLists.lists[0], cardRef);
+        if (!card) {
+            return this.sendHtmlReply(roomId, event, "Card not found");
+        }
+
+        await Trello.moveCard(token, boardAndLists.board.id, boardAndLists.lists[0].id, boardAndLists.lists[1].id, card.id);
+        return this.sendHtmlReply(roomId, event, "Card moved");
+    }
+
+    private async doCardArchiveCommand(roomId: string, event: any, cardRef: string, listBoardRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const boardAndList = await this.findBoardAndList(roomId, token, listBoardRef);
+        if (!boardAndList.board || boardAndList.lists.length !== 1) {
+            return this.sendHtmlReply(roomId, event, "Could not find board or list");
+        }
+
+        const card = await this.findCardByReference(roomId, token, boardAndList.board, boardAndList.lists[0], cardRef);
+        if (!card) {
+            return this.sendHtmlReply(roomId, event, "Card not found");
+        }
+
+        await Trello.archiveCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id);
+        return this.sendHtmlReply(roomId, event, "Card archived");
     }
 }

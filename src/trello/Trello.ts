@@ -72,6 +72,30 @@ export class Trello {
         return OAuthHandler.authedGet(token, "/1/lists/" + listId + "/cards");
     }
 
+    public static async getCard(token: TrelloToken, boardId: string, listId: string, cardId: string): Promise<TrelloCard> {
+        return OAuthHandler.authedGet(token, "/1/cards/" + cardId);
+    }
+
+    public static async createCard(token: TrelloToken, boardId: string, listId: string, options: any): Promise<TrelloCard> {
+        return OAuthHandler.authedPost(token, "/1/cards", {}, Object.assign({idList: listId}, options));
+    }
+
+    public static async assignCard(token: TrelloToken, boardId: string, listId: string, cardId: string, memberId: string): Promise<any> {
+        return OAuthHandler.authedPost(token, "/1/cards/" + cardId + "/idMembers", {}, {value: memberId});
+    }
+
+    public static async unassignCard(token: TrelloToken, boardId: string, listId: string, cardId: string, memberId: string): Promise<any> {
+        return OAuthHandler.authedDelete(token, "/1/cards/" + cardId + "/idMembers/" + memberId);
+    }
+
+    public static async archiveCard(token: TrelloToken, boardId: string, listId: string, cardId: string): Promise<any> {
+        return OAuthHandler.authedPut(token, "/1/cards/" + cardId, {}, {closed: true});
+    }
+
+    public static async moveCard(token: TrelloToken, boardId: string, oldListId: string, newListId: string, cardId: string): Promise<any> {
+        return OAuthHandler.authedPut(token, "/1/cards/" + cardId, {}, {idList: newListId});
+    }
+
     public static newWebhook(token: TrelloToken, idModel: string, callbackUrl: string, description: string): Promise<{ id: string }> {
         return new Promise((resolve, reject) => {
             request({
