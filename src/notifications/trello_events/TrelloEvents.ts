@@ -25,6 +25,21 @@ export class TrelloEvents {
         TrelloEvents.CARD_UPDATED,
     ];
 
+    public static get ALL(): TrelloEventDef[] {
+        const propNames = Object.keys(TrelloEvents);
+        const defs: TrelloEventDef[] = [];
+        for (const prop of propNames) {
+            if (prop.toUpperCase() !== prop) continue;
+
+            const value = TrelloEvents[prop];
+            if (!value || Array.isArray(value) || typeof(value) !== "object") continue;
+
+            defs.push(value);
+        }
+
+        return defs;
+    }
+
     private constructor() {
     }
 

@@ -111,46 +111,57 @@ export class BotOptionsManager {
         return this.calculateNewRoomOptions(roomId);
     }
 
-    public async addWatchedEvent(roomId: string, boardId: string, event: string): Promise<RoomOptions> {
-        const current = await this.getRoomOptions(roomId);
-        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
-        if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
-        if (!newOptions.watchedEvents[boardId]) newOptions.watchedEvents[boardId] = [];
-        newOptions.watchedEvents[boardId].push(event);
-
-        await this.setRoomOptions(roomId, newOptions);
-        return this.calculateNewRoomOptions(roomId);
-    }
-
-    public async removeWatchedEvent(roomId: string, boardId: string, event: string): Promise<RoomOptions> {
+    public async addWatchedEvents(roomId: string, boardId: string, events: TrelloEventDef[]): Promise<RoomOptions> {
         const current = await this.getRoomOptions(roomId);
         const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
         if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
         if (!newOptions.watchedEvents[boardId]) newOptions.watchedEvents[boardId] = [];
 
-        const index = newOptions.watchedEvents[boardId].indexOf(event);
-        if (index !== -1) newOptions.watchedEvents[boardId].splice(index, 1);
+        for (const event of events) {
+            const index = newOptions.watchedEvents[boardId].indexOf(event.name);
+            if (index === -1) newOptions.watchedEvents[boardId].push(event.name);
+        }
 
         await this.setRoomOptions(roomId, newOptions);
         return this.calculateNewRoomOptions(roomId);
     }
 
-    public async setWatchedEvents(roomId: string, boardId: string, events: string[]): Promise<RoomOptions> {
+    public async removeWatchedEvents(roomId: string, boardId: string, events: TrelloEventDef[]): Promise<RoomOptions> {
         const current = await this.getRoomOptions(roomId);
         const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
         if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
-        newOptions.watchedEvents[boardId] = events;
+        if (!newOptions.watchedEvents[boardId]) newOptions.watchedEvents[boardId] = [];
+
+        for (const event of events) {
+            const index = newOptions.watchedEvents[boardId].indexOf(event.name);
+            if (index !== -1) newOptions.watchedEvents[boardId].splice(index, 1);
+        }
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async setWatchedEvents(roomId: string, boardId: string, events: TrelloEventDef[]): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
+        newOptions.watchedEvents[boardId] = events.map(e => e.name);
 
         await this.setRoomOptions(roomId, newOptions);
         return this.calculateNewRoomOptions(roomId);
     }
 
     public async isEventWatched(roomId: string, boardId: string, event: TrelloEventDef): Promise<boolean> {
+        const watchedEvents = await this.getWatchedEvents(roomId, boardId);
+        return Promise.resolve(!!watchedEvents.find(e => e.name === event.name));
+    }
+
+    public async getWatchedEvents(roomId: string, boardId: string): Promise<TrelloEventDef[]> {
         const options = await this.getRoomOptions(roomId);
         if (!options.watchedEvents) options.watchedEvents = {};
-        if (!options.watchedEvents[boardId]) options.watchedEvents[boardId] = TrelloEvents.DEFAULT_WATCHED_EVENTS.map(e => e.name);
+        if (!options.watchedEvents[boardId] && !Array.isArray(options.watchedEvents[boardId])) options.watchedEvents[boardId] = TrelloEvents.DEFAULT_WATCHED_EVENTS.map(e => e.name);
 
-        return Promise.resolve(!!options.watchedEvents[boardId].find(e => e === event.name));
+        return options.watchedEvents[boardId].map(e => TrelloEvents.ALL.find(k => k.name === e)).filter(e => !!e);
     }
 
     private async setRoomOptions(roomId: string, options: RoomOptions): Promise<any> {

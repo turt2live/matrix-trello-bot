@@ -11,6 +11,7 @@ import { TrelloBoard } from "./trello/models/board";
 import { TrelloList } from "./trello/models/list";
 import { parseQuotedArgumentsBackwards } from "./utils";
 import { TrelloCard } from "./trello/models/card";
+import { TrelloEvents } from "./notifications/trello_events/TrelloEvents";
 import striptags = require("striptags");
 
 export class CommandProcessor {
@@ -186,6 +187,26 @@ export class CommandProcessor {
                 }
 
                 return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
+            } else if (command === "events") {
+                if (args.length <= 0) {
+                    return this.doListWatchableEventsCommand(roomId, event);
+                }
+
+                if (args[0] === "watched") return this.doListWatchedEventsCommand(roomId, event, null);
+
+                if (args.length < 2) {
+                    return this.sendHtmlReply(roomId, event, "Too few arguments. Try <code>!trello help</code>");
+                }
+
+                if (args[1] === "watched") return this.doListWatchedEventsCommand(roomId, event, args[0]);
+
+                if (args[0] === "watch") return this.doWatchEventsCommand(roomId, event, null, args.splice(1));
+                if (args[1] === "watch") return this.doWatchEventsCommand(roomId, event, args[0], args.splice(2));
+
+                if (args[0] === "unwatch") return this.doUnwatchEventsCommand(roomId, event, null, args.splice(1));
+                if (args[1] === "unwatch") return this.doUnwatchEventsCommand(roomId, event, args[0], args.splice(2));
+
+                return this.sendHtmlReply(roomId, event, "Unrecognized command. Try <code>!trello help</code>");
             } else {
                 const htmlMessage = "" +
                     "<h4>Authorization</h4>" +
@@ -195,8 +216,6 @@ export class CommandProcessor {
                     "</code></pre>" +
                     "<h4>Board management</h4>" +
                     "<pre><code>" +
-                    `!trello watch &lt;board url&gt;                         - Watches the given board in this room\n` +
-                    `!trello unwatch &lt;board url&gt;                       - Unwatches the given board in this room\n` +
                     `!trello default board &lt;board url&gt;                 - Sets the default board for the room\n` +
                     `!trello boards [room id/alias]                    - Lists the boards being watched in the room\n` +
                     `!trello board &lt;board url&gt; alias &lt;new name&gt;        - Sets an alias for the given board\n` +
@@ -221,6 +240,15 @@ export class CommandProcessor {
                     `!trello card unassign [board url/alias] [list name/alias] &lt;card ID&gt; &lt;assignee&gt;             - Removes a user from a card\n` +
                     `!trello card move &lt;card ID&gt; [board url/alias] &lt;from list name/alias&gt; &lt;to list name/alias&gt;  - Moves a card\n` +
                     `!trello card archive [board url/alias] [list name/alias] &lt;card ID&gt;                         - Archives/closes a card\n` +
+                    "</code></pre>" +
+                    "<h4>Watching boards</h4>" +
+                    "<pre><code>" +
+                    `!trello watch &lt;board url&gt;                                   - Watches the given board in this room\n` +
+                    `!trello unwatch &lt;board url&gt;                                 - Unwatches the given board in this room\n` +
+                    `!trello events                                              - Lists the types of events the bot can support\n` +
+                    `!trello events [board url/alias] watched                    - Lists the events this room watches\n` +
+                    `!trello events [board url/alias] watch &lt;event&gt; [event...]    - Adds events to the list of watched events\n` +
+                    `!trello events [board url/alias] unwatch &lt;event&gt; [event...]  - Removes events from the list of watched events\n` +
                     "</code></pre>" +
                     "<br/><p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
                 return this.sendHtmlReply(roomId, event, htmlMessage);
@@ -941,5 +969,129 @@ export class CommandProcessor {
 
         await Trello.archiveCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id);
         return this.sendHtmlReply(roomId, event, "Card archived");
+    }
+
+    private async doListWatchableEventsCommand(roomId: string, event: any): Promise<any> {
+        const message = "<p>The watchable events are:</p><ul>" +
+            "<li><code>all</code> - When using <code>!trello events [un]watch</code>, this may be used to reference all the events defined in this list</li>" +
+            TrelloEvents.ALL.map(e => `<li><code>${e.name}</code> - ${e.description}</li>`).join("") +
+            "</ul>";
+        return this.sendHtmlReply(roomId, event, message);
+    }
+
+    private async doListWatchedEventsCommand(roomId: string, event: any, boardRef: string): Promise<any> {
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const board = await this.findOrUseDefaultBoard(roomId, token, boardRef);
+        if (!board) {
+            return this.sendHtmlReply(roomId, event, "Board not found");
+        }
+
+        const watchedBoard = await BoardRooms.findAll({where: {roomId: roomId, boardId: board.id}});
+        if (!watchedBoard || watchedBoard.length === 0) {
+            return this.sendHtmlReply(roomId, event, "The board is not being watched here");
+        }
+
+        const watchedEvents = await this.optionsManager.getWatchedEvents(roomId, board.id);
+
+        if (watchedEvents.length === 0) {
+            return this.sendHtmlReply(roomId, event, "No events are being watched for " + board.name);
+        }
+
+        const message = `<p>The watched events for ${board.name} are:</p><ul>` +
+            watchedEvents.map(e => `<li><code>${e.name}</code> - ${e.description}</li>`).join("") +
+            "</ul>";
+        return this.sendHtmlReply(roomId, event, message);
+    }
+
+    private async doWatchEventsCommand(roomId: string, event: any, boardRef: string, events: string[]): Promise<any> {
+        if (!(await this.client.userHasPowerLevelFor(event["sender"], roomId, "io.t2l.bots.trello.watched_events", true))) {
+            return this.sendHtmlReply(roomId, event, "You do not have permission to run this command");
+        }
+
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const board = await this.findOrUseDefaultBoard(roomId, token, boardRef);
+        if (!board) {
+            return this.sendHtmlReply(roomId, event, "Board not found");
+        }
+
+        const watchedBoard = await BoardRooms.findAll({where: {roomId: roomId, boardId: board.id}});
+        if (!watchedBoard || watchedBoard.length === 0) {
+            return this.sendHtmlReply(roomId, event, "The board is not being watched here");
+        }
+
+        if (events.indexOf("all") !== -1) {
+            try {
+                await this.optionsManager.setWatchedEvents(roomId, board.id, TrelloEvents.ALL);
+            } catch (e) {
+                LogService.error("CommandProcessor", e);
+                return this.sendHtmlReply(roomId, event, "Failed to change watched events - am I a moderator in the room?");
+            }
+        } else {
+            const defs = events.map(e => TrelloEvents.ALL.find(k => k.name === e));
+            if (defs.some(d => !d)) {
+                return this.sendHtmlReply(roomId, event, "One or more events are not recognized. Try <code>!trello help</code>");
+            }
+
+            try {
+                await this.optionsManager.addWatchedEvents(roomId, board.id, defs);
+            } catch (e) {
+                LogService.error("CommandProcessor", e);
+                return this.sendHtmlReply(roomId, event, "Failed to change watched events - am I a moderator in the room?");
+            }
+        }
+
+        return this.sendHtmlReply(roomId, event, "Watched events updated");
+    }
+
+    private async doUnwatchEventsCommand(roomId: string, event: any, boardRef: string, events: string[]): Promise<any> {
+        if (!(await this.client.userHasPowerLevelFor(event["sender"], roomId, "io.t2l.bots.trello.watched_events", true))) {
+            return this.sendHtmlReply(roomId, event, "You do not have permission to run this command");
+        }
+
+        const token = await TrelloToken.findOne({where: {userId: event['sender']}});
+        if (!token) {
+            return this.sendHtmlReply(roomId, event, "You must authorize me to use your account before you can run this command.");
+        }
+
+        const board = await this.findOrUseDefaultBoard(roomId, token, boardRef);
+        if (!board) {
+            return this.sendHtmlReply(roomId, event, "Board not found");
+        }
+
+        const watchedBoard = await BoardRooms.findAll({where: {roomId: roomId, boardId: board.id}});
+        if (!watchedBoard || watchedBoard.length === 0) {
+            return this.sendHtmlReply(roomId, event, "The board is not being watched here");
+        }
+
+        if (events.indexOf("all") !== -1) {
+            try {
+                await this.optionsManager.setWatchedEvents(roomId, board.id, []);
+            } catch (e) {
+                LogService.error("CommandProcessor", e);
+                return this.sendHtmlReply(roomId, event, "Failed to change watched events - am I a moderator in the room?");
+            }
+        } else {
+            const defs = events.map(e => TrelloEvents.ALL.find(k => k.name === e));
+            if (defs.some(d => !d)) {
+                return this.sendHtmlReply(roomId, event, "One or more events are not recognized. Try <code>!trello help</code>");
+            }
+
+            try {
+                await this.optionsManager.removeWatchedEvents(roomId, board.id, defs);
+            } catch (e) {
+                LogService.error("CommandProcessor", e);
+                return this.sendHtmlReply(roomId, event, "Failed to change watched events - am I a moderator in the room?");
+            }
+        }
+
+        return this.sendHtmlReply(roomId, event, "Watched events updated");
     }
 }
