@@ -235,7 +235,7 @@ export class CommandProcessor {
                     "</code></pre>" +
                     "<h4>Card management</h4>" +
                     "<pre><code>" +
-                    `!trello card add [board url/alias] [list name/alias] &lt;title&gt;                              - Adds a new card to a list\n` +
+                    `!trello card add [board url/alias] [list name/alias] &lt;title&gt;                               - Adds a new card to a list\n` +
                     `!trello card assign [board url/alias] [list name/alias] &lt;card ID&gt; &lt;assignee&gt;               - Adds a user to a card\n` +
                     `!trello card unassign [board url/alias] [list name/alias] &lt;card ID&gt; &lt;assignee&gt;             - Removes a user from a card\n` +
                     `!trello card move &lt;card ID&gt; [board url/alias] &lt;from list name/alias&gt; &lt;to list name/alias&gt;  - Moves a card\n` +
