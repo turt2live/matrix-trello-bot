@@ -1,12 +1,14 @@
 import { MatrixClient } from "matrix-bot-sdk";
 import BoardRooms from "./db/models/BoardRooms";
 import { LogService } from "matrix-js-snippets";
+import { TrelloEventDef, TrelloEvents } from "./notifications/trello_events/TrelloEvents";
 
 export interface RoomOptions {
     boardId: string;
     listId: string;
     boardAliases: { [boardId: string]: string };
     listAliases: { [listId: string]: string };
+    watchedEvents: { [boardId: string]: string[] };
 }
 
 export class BotOptionsManager {
@@ -22,6 +24,7 @@ export class BotOptionsManager {
             listId: null,
             boardAliases: {},
             listAliases: {},
+            watchedEvents: {},
         };
 
         try {
@@ -34,6 +37,7 @@ export class BotOptionsManager {
                     roomOptions.listId = state["trello"]["defaultListId"];
                     roomOptions.boardAliases = state["trello"]["boardAliases"];
                     roomOptions.listAliases = state["trello"]["listAliases"];
+                    roomOptions.watchedEvents = state["trello"]["watchedEvents"];
                 }
             }
         } catch (e) {
@@ -54,6 +58,7 @@ export class BotOptionsManager {
 
         if (!roomOptions.boardAliases) roomOptions.boardAliases = {};
         if (!roomOptions.listAliases) roomOptions.listAliases = {};
+        if (!roomOptions.watchedEvents) roomOptions.watchedEvents = {};
 
         LogService.verbose("BotOptionsManager", "New options for " + roomId + " are: " + JSON.stringify(roomOptions));
         this.cachedOptions[roomId] = roomOptions;
@@ -106,6 +111,48 @@ export class BotOptionsManager {
         return this.calculateNewRoomOptions(roomId);
     }
 
+    public async addWatchedEvent(roomId: string, boardId: string, event: string): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
+        if (!newOptions.watchedEvents[boardId]) newOptions.watchedEvents[boardId] = [];
+        newOptions.watchedEvents[boardId].push(event);
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async removeWatchedEvent(roomId: string, boardId: string, event: string): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
+        if (!newOptions.watchedEvents[boardId]) newOptions.watchedEvents[boardId] = [];
+
+        const index = newOptions.watchedEvents[boardId].indexOf(event);
+        if (index !== -1) newOptions.watchedEvents[boardId].splice(index, 1);
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async setWatchedEvents(roomId: string, boardId: string, events: string[]): Promise<RoomOptions> {
+        const current = await this.getRoomOptions(roomId);
+        const newOptions: RoomOptions = JSON.parse(JSON.stringify(current));
+        if (!newOptions.watchedEvents) newOptions.watchedEvents = {};
+        newOptions.watchedEvents[boardId] = events;
+
+        await this.setRoomOptions(roomId, newOptions);
+        return this.calculateNewRoomOptions(roomId);
+    }
+
+    public async isEventWatched(roomId: string, boardId: string, event: TrelloEventDef): Promise<boolean> {
+        const options = await this.getRoomOptions(roomId);
+        if (!options.watchedEvents) options.watchedEvents = {};
+        if (!options.watchedEvents[boardId]) options.watchedEvents[boardId] = TrelloEvents.DEFAULT_WATCHED_EVENTS.map(e => e.name);
+
+        return Promise.resolve(!!options.watchedEvents[boardId].find(e => e === event.name));
+    }
+
     private async setRoomOptions(roomId: string, options: RoomOptions): Promise<any> {
         const stateKey = "_" + (await this.client.getUserId());
         let current = {};
@@ -124,6 +171,7 @@ export class BotOptionsManager {
             defaultListId: options.listId,
             boardAliases: options.boardAliases,
             listAliases: options.listAliases,
+            watchedEvents: options.watchedEvents,
         };
         return this.client.sendStateEvent(roomId, "m.room.bot.options", stateKey, current);
     }
