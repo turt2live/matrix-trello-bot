@@ -11,7 +11,7 @@ import { TrelloBoard } from "./trello/models/board";
 import { TrelloList } from "./trello/models/list";
 import { parseQuotedArgumentsBackwards } from "./utils";
 import { TrelloCard } from "./trello/models/card";
-import { TrelloEvents } from "./notifications/trello_events/TrelloEvents";
+import { TrelloEventDef, TrelloEvents } from "./notifications/trello_events/TrelloEvents";
 import striptags = require("striptags");
 
 export class CommandProcessor {
@@ -430,6 +430,13 @@ export class CommandProcessor {
         }
 
         return {board: foundBoard, lists: foundLists};
+    }
+
+    private async sendHtmlReplyIfNotWatched(roomId: string, event: any, message: string, board: TrelloBoard, eventDef: TrelloEventDef): Promise<any> {
+        const isWatched = await this.optionsManager.isEventWatched(roomId, board.id, eventDef);
+        if (isWatched) return;
+
+        return this.sendHtmlReply(roomId, event, message);
     }
 
     private sendHtmlReply(roomId: string, event: any, message: string): Promise<any> {
@@ -878,7 +885,7 @@ export class CommandProcessor {
         }
 
         const card = await Trello.createCard(token, boardAndList.board.id, boardAndList.lists[0].id, {name: title});
-        return this.sendHtmlReply(roomId, event, "Card created: " + card.shortUrl + " (<code>" + card.id.substring(card.id.length - 6) + "</code>)");
+        return this.sendHtmlReplyIfNotWatched(roomId, event, "Card created: " + card.shortUrl + " (<code>" + card.id.substring(card.id.length - 6) + "</code>)", boardAndList.board, TrelloEvents.CARD_CREATED);
     }
 
     private async doCardAssignCommand(roomId: string, event: any, cardRef: string, assignee: string, listBoardRef: string): Promise<any> {
@@ -903,7 +910,7 @@ export class CommandProcessor {
         }
 
         await Trello.assignCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id, member.id);
-        return this.sendHtmlReply(roomId, event, "User added to card");
+        return this.sendHtmlReplyIfNotWatched(roomId, event, "User added to card", boardAndList.board, TrelloEvents.CARD_ASSIGNED);
     }
 
     private async doCardUnassignCommand(roomId: string, event: any, cardRef: string, assignee: string, listBoardRef: string): Promise<any> {
@@ -928,7 +935,7 @@ export class CommandProcessor {
         }
 
         await Trello.unassignCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id, member.id);
-        return this.sendHtmlReply(roomId, event, "User removed from card");
+        return this.sendHtmlReplyIfNotWatched(roomId, event, "User removed from card", boardAndList.board, TrelloEvents.CARD_UNASSIGNED);
     }
 
     private async doCardMoveCommand(roomId: string, event: any, cardRef: string, boardListsRef: string): Promise<any> {
@@ -948,7 +955,7 @@ export class CommandProcessor {
         }
 
         await Trello.moveCard(token, boardAndLists.board.id, boardAndLists.lists[0].id, boardAndLists.lists[1].id, card.id);
-        return this.sendHtmlReply(roomId, event, "Card moved");
+        return this.sendHtmlReplyIfNotWatched(roomId, event, "Card moved", boardAndLists.board, TrelloEvents.CARD_MOVED);
     }
 
     private async doCardArchiveCommand(roomId: string, event: any, cardRef: string, listBoardRef: string): Promise<any> {
@@ -968,7 +975,7 @@ export class CommandProcessor {
         }
 
         await Trello.archiveCard(token, boardAndList.board.id, boardAndList.lists[0].id, card.id);
-        return this.sendHtmlReply(roomId, event, "Card archived");
+        return this.sendHtmlReplyIfNotWatched(roomId, event, "Card archived", boardAndList.board, TrelloEvents.CARD_ARCHIVED);
     }
 
     private async doListWatchableEventsCommand(roomId: string, event: any): Promise<any> {
