@@ -247,8 +247,8 @@ export class CommandProcessor {
                     `!trello unwatch &lt;board url&gt;                                 - Unwatches the given board in this room\n` +
                     `!trello events                                              - Lists the types of events the bot can support\n` +
                     `!trello events [board url/alias] watched                    - Lists the events this room watches\n` +
-                    `!trello events [board url/alias] watch &lt;event&gt; [event...]    - Adds events to the list of watched events\n` +
-                    `!trello events [board url/alias] unwatch &lt;event&gt; [event...]  - Removes events from the list of watched events\n` +
+                    `!trello events [board url/alias] watch &lt;event&gt; [event...]   - Adds events to the list of watched events\n` +
+                    `!trello events [board url/alias] unwatch &lt;event&gt; [event...] - Removes events from the list of watched events\n` +
                     "</code></pre>" +
                     "<br/><p>For help or more information, visit <a href='https://matrix.to/#/#help:t2bot.io'>#help:t2bot.io</a></p>";
                 return this.sendHtmlReply(roomId, event, htmlMessage);
