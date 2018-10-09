@@ -440,7 +440,7 @@ export class CommandProcessor {
     }
 
     private sendHtmlReply(roomId: string, event: any, message: string): Promise<any> {
-        const reply = RichReply.createFor(event, striptags(message), message);
+        const reply = RichReply.createFor(roomId, event, striptags(message), message);
         reply["msgtype"] = "m.notice";
         return this.client.sendMessage(roomId, reply);
     }
