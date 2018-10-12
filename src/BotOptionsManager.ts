@@ -153,13 +153,16 @@ export class BotOptionsManager {
 
     public async isEventWatched(roomId: string, boardId: string, event: TrelloEventDef): Promise<boolean> {
         const watchedEvents = await this.getWatchedEvents(roomId, boardId);
-        return Promise.resolve(!!watchedEvents.find(e => e.name === event.name));
+        const watchingRooms = await BoardRooms.findAll({where: {roomId: roomId, boardId: boardId}});
+        return Promise.resolve(watchingRooms && watchingRooms.length > 0 && !!watchedEvents.find(e => e.name === event.name));
     }
 
-    public async getWatchedEvents(roomId: string, boardId: string): Promise<TrelloEventDef[]> {
+    public async getWatchedEvents(roomId: string, boardId: string, allowDefaults = false): Promise<TrelloEventDef[]> {
         const options = await this.getRoomOptions(roomId);
         if (!options.watchedEvents) options.watchedEvents = {};
-        if (!options.watchedEvents[boardId] && !Array.isArray(options.watchedEvents[boardId])) options.watchedEvents[boardId] = TrelloEvents.DEFAULT_WATCHED_EVENTS.map(e => e.name);
+        if (!options.watchedEvents[boardId] && !Array.isArray(options.watchedEvents[boardId])) {
+            options.watchedEvents[boardId] = allowDefaults ? TrelloEvents.DEFAULT_WATCHED_EVENTS.map(e => e.name) : [];
+        }
 
         return options.watchedEvents[boardId].map(e => TrelloEvents.ALL.find(k => k.name === e)).filter(e => !!e);
     }
