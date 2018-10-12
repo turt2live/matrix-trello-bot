@@ -157,7 +157,7 @@ export class BotOptionsManager {
         return Promise.resolve(watchingRooms && watchingRooms.length > 0 && !!watchedEvents.find(e => e.name === event.name));
     }
 
-    public async getWatchedEvents(roomId: string, boardId: string, allowDefaults = false): Promise<TrelloEventDef[]> {
+    public async getWatchedEvents(roomId: string, boardId: string, allowDefaults = true): Promise<TrelloEventDef[]> {
         const options = await this.getRoomOptions(roomId);
         if (!options.watchedEvents) options.watchedEvents = {};
         if (!options.watchedEvents[boardId] && !Array.isArray(options.watchedEvents[boardId])) {
