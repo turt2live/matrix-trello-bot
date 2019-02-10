@@ -28,17 +28,13 @@ export class BotOptionsManager {
         };
 
         try {
-            const state = await this.client.getRoomStateEvents(roomId, "m.room.bot.options", "_" + (await this.client.getUserId()));
-            if (typeof(state) !== "object" || !state) {
-                throw new Error("Expected exactly one state event for bot options in " + roomId);
-            } else {
-                if (state["trello"]) {
-                    roomOptions.boardId = state["trello"]["defaultBoardId"];
-                    roomOptions.listId = state["trello"]["defaultListId"];
-                    roomOptions.boardAliases = state["trello"]["boardAliases"];
-                    roomOptions.listAliases = state["trello"]["listAliases"];
-                    roomOptions.watchedEvents = state["trello"]["watchedEvents"];
-                }
+            const state = await this.client.getRoomStateEvent(roomId, "m.room.bot.options", "_" + (await this.client.getUserId()));
+            if (state["trello"]) {
+                roomOptions.boardId = state["trello"]["defaultBoardId"];
+                roomOptions.listId = state["trello"]["defaultListId"];
+                roomOptions.boardAliases = state["trello"]["boardAliases"];
+                roomOptions.listAliases = state["trello"]["listAliases"];
+                roomOptions.watchedEvents = state["trello"]["watchedEvents"];
             }
         } catch (e) {
             if (e["body"] && typeof(e["body"]) === "string") e["body"] = JSON.parse(e["body"]);
@@ -167,11 +163,11 @@ export class BotOptionsManager {
         return options.watchedEvents[boardId].map(e => TrelloEvents.ALL.find(k => k.name === e)).filter(e => !!e);
     }
 
-    private async setRoomOptions(roomId: string, options: RoomOptions): Promise<any> {
+    public async setRoomOptions(roomId: string, options: RoomOptions): Promise<any> {
         const stateKey = "_" + (await this.client.getUserId());
         let current = {};
         try {
-            current = await this.client.getRoomStateEvents(roomId, "m.room.bot.options", stateKey);
+            current = await this.client.getRoomStateEvent(roomId, "m.room.bot.options", stateKey);
         } catch (e) {
             if (e["body"] && typeof(e["body"]) === "string") e["body"] = JSON.parse(e["body"]);
             if (e["body"] && e["body"]["errcode"] === "M_NOT_FOUND") {

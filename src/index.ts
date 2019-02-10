@@ -1,4 +1,4 @@
-import { AutojoinRoomsMixin, MatrixClient, SimpleRetryJoinStrategy } from "matrix-bot-sdk";
+import { AutojoinRoomsMixin, AutojoinUpgradedRoomsMixin, MatrixClient, SimpleRetryJoinStrategy } from "matrix-bot-sdk";
 import config from "./config";
 import { LogService } from "matrix-js-snippets";
 import { LocalstorageStorageProvider } from "./LocalstorageStorageProvider";
@@ -17,6 +17,7 @@ const announcer = new RoomAnnouncer(client, optionsManager);
 const processor = new WebhookProcessor(announcer);
 
 AutojoinRoomsMixin.setupOnClient(client);
+AutojoinUpgradedRoomsMixin.setupOnClient(client);
 client.setJoinStrategy(new SimpleRetryJoinStrategy());
 
 async function finishInit() {
@@ -24,6 +25,14 @@ async function finishInit() {
     LogService.info("index", "Trello bot logged in as " + userId);
 
     await TrelloStore.updateSchema();
+
+    client.on("room.upgraded", async (newRoomId, event) => {
+        const oldRoomId = event['content']['predecessor']['room_id'];
+
+        const oldOptions = await optionsManager.getRoomOptions(oldRoomId);
+        await optionsManager.setRoomOptions(newRoomId, oldOptions);
+        return client.sendNotice(newRoomId, "I have transferred your settings from your previous room to here.");
+    });
 
     client.on("room.message", (roomId, event) => {
         if (event['sender'] === userId) return;
