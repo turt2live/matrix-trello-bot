@@ -1,14 +1,13 @@
-FROM node:alpine
+FROM node:10-alpine
 COPY . /tmp/src
 WORKDIR /tmp/src
-RUN apk add --no-cache -t build-deps make gcc g++ python ca-certificates libc-dev wget git \
+RUN apk add --no-cache make gcc g++ python ca-certificates libc-dev wget git sqlite \
     && npm install \
     && npm run build \
     && mv lib/ /matrix-trello-bot/ \
     && mv node_modules / \
     && cd / \
-    && rm -rf /tmp/* \
-    && apk del build-deps
+    && rm -rf /tmp/*
 
 WORKDIR /
 
