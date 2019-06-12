@@ -448,7 +448,7 @@ export class CommandProcessor {
     private async doLoginCommand(roomId: string, event: any): Promise<any> {
         const members = await this.client.getJoinedRoomMembers(roomId);
         if (members.length !== 2) {
-            return this.sendHtmlReply(roomId, event, "This room is not a private chat and therefor cannot be used to log in.");
+            return this.sendHtmlReply(roomId, event, "This room is not a private chat and therefore cannot be used to log in.");
         }
 
         const url = await OAuthHandler.getAuthUrl(async (username: string, token: string, tokenSecret: string) => {
