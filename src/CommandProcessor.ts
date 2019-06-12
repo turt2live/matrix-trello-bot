@@ -475,7 +475,7 @@ export class CommandProcessor {
             });
         }
 
-        const message = 'Your have been logged out.';
+        const message = 'You have been logged out.';
         return this.sendHtmlReply(roomId, event, message);
     }
 
