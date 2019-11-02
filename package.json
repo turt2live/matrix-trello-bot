@@ -23,7 +23,7 @@
     "random-string": "^0.2.0",
     "reflect-metadata": "^0.1.12",
     "request": "^2.88.0",
-    "sequelize": "^4.39.0",
+    "sequelize": "^5.15.1",
     "sequelize-typescript": "^0.6.6",
     "sqlite3": "^4.0.2",
     "string-template": "^1.0.0",
