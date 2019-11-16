@@ -2,7 +2,7 @@ import { AllowNull, AutoIncrement, Column, Model, PrimaryKey, Table } from "sequ
 
 @Table({
     tableName: "trello_boards_to_rooms",
-    underscoredAll: false,
+    underscored: false,
     timestamps: false,
 })
 export default class BoardRooms extends Model<BoardRooms> {

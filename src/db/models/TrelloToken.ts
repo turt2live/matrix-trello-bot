@@ -5,7 +5,7 @@ import {
 
 @Table({
     tableName: "trello_tokens",
-    underscoredAll: false,
+    underscored: false,
     timestamps: false,
 })
 export default class TrelloToken extends Model<TrelloToken> {

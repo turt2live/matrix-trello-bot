@@ -1,6 +1,6 @@
 import { LogService } from "matrix-js-snippets";
 import config from "../config";
-import { Model, Sequelize } from "sequelize-typescript";
+import { Sequelize } from "sequelize-typescript";
 import TrelloToken from "./models/TrelloToken";
 import * as path from "path";
 import * as Umzug from "umzug";
@@ -19,7 +19,7 @@ class _TrelloStore {
             password: "",
             logging: i => LogService.verbose("TrelloStore [SQL]", i)
         });
-        this.sequelize.addModels(<Array<typeof Model>>[
+        this.sequelize.addModels([
             TrelloToken,
             BoardRooms,
             TrelloWebhook,

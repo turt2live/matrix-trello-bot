@@ -5,7 +5,7 @@ import {
 
 @Table({
     tableName: "trello_webhooks",
-    underscoredAll: false,
+    underscored: false,
     timestamps: false,
 })
 export default class TrelloWebhook extends Model<TrelloWebhook> {
