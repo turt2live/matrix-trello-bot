@@ -32,7 +32,7 @@ export class WebhookProcessor {
             let event: TrelloEvent = null;
 
             const action = payload["action"];
-            LogService.warn("WebhookProcessor", action);
+
             if (action["type"] === "createCard") {
                 const card = <TrelloCard>action["data"]["card"];
                 const list = <TrelloList>action["data"]["list"];
