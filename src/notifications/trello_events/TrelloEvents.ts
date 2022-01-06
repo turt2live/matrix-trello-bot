@@ -1,3 +1,5 @@
+import { Trello } from "../../trello/Trello";
+
 export interface TrelloEventDef {
     name: string;
     description: string;
@@ -13,6 +15,8 @@ export class TrelloEvents {
     public static readonly CARD_ASSIGNED = TrelloEvents.createDef("cardAssigned", "Fired when a user has been added to a card");
     public static readonly CARD_UNASSIGNED = TrelloEvents.createDef("cardUnassigned", "Fired when a user has been removed from a card");
     public static readonly CARD_UPDATED = TrelloEvents.createDef("cardUpdated", "Fired when an unhandled update happens to a card");
+    public static readonly CARD_COMMENTED = TrelloEvents.createDef("cardCommented", "Fired when someone leaves a comment on a card");
+
 
     public static readonly DEFAULT_WATCHED_EVENTS: TrelloEventDef[] = [
         TrelloEvents.CARD_CREATED,
@@ -23,6 +27,7 @@ export class TrelloEvents {
         TrelloEvents.CARD_ASSIGNED,
         TrelloEvents.CARD_UNASSIGNED,
         TrelloEvents.CARD_UPDATED,
+        TrelloEvents.CARD_COMMENTED,
     ];
 
     public static get ALL(): TrelloEventDef[] {
@@ -32,7 +37,7 @@ export class TrelloEvents {
             if (prop.toUpperCase() !== prop) continue;
 
             const value = TrelloEvents[prop];
-            if (!value || Array.isArray(value) || typeof(value) !== "object") continue;
+            if (!value || Array.isArray(value) || typeof (value) !== "object") continue;
 
             defs.push(value);
         }
@@ -44,6 +49,6 @@ export class TrelloEvents {
     }
 
     private static createDef(name: string, description: string): TrelloEventDef {
-        return {name, description};
+        return { name, description };
     }
 }
