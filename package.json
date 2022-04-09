@@ -27,7 +27,7 @@
     "sequelize-typescript": "^1.0.0",
     "sqlite3": "^4.0.2",
     "string-template": "^1.0.0",
-    "striptags": "^3.1.1",
+    "striptags": "^3.2.0",
     "umzug": "^2.1.0"
   },
   "devDependencies": {
