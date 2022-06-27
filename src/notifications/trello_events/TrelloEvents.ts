@@ -1,5 +1,3 @@
-import { Trello } from "../../trello/Trello";
-
 export interface TrelloEventDef {
     name: string;
     description: string;
