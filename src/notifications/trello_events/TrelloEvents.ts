@@ -15,7 +15,6 @@ export class TrelloEvents {
     public static readonly CARD_UPDATED = TrelloEvents.createDef("cardUpdated", "Fired when an unhandled update happens to a card");
     public static readonly CARD_COMMENTED = TrelloEvents.createDef("cardCommented", "Fired when someone leaves a comment on a card");
 
-
     public static readonly DEFAULT_WATCHED_EVENTS: TrelloEventDef[] = [
         TrelloEvents.CARD_CREATED,
         TrelloEvents.CARD_MOVED,
@@ -35,7 +34,7 @@ export class TrelloEvents {
             if (prop.toUpperCase() !== prop) continue;
 
             const value = TrelloEvents[prop];
-            if (!value || Array.isArray(value) || typeof (value) !== "object") continue;
+            if (!value || Array.isArray(value) || typeof(value) !== "object") continue;
 
             defs.push(value);
         }
@@ -47,6 +46,6 @@ export class TrelloEvents {
     }
 
     private static createDef(name: string, description: string): TrelloEventDef {
-        return { name, description };
+        return {name, description};
     }
 }

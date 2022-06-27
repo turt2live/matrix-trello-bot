@@ -27,9 +27,7 @@ export class WebhookProcessor {
             if (!payload["action"] || !payload["action"]["data"]) return;
 
             const board = <TrelloBoard>payload["model"];
-
             let event: TrelloEvent = null;
-
             const action = payload["action"];
 
             if (action["type"] === "createCard") {
