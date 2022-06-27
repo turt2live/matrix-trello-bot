@@ -15,7 +15,6 @@ import { CardAssignedEvent } from "./trello_events/CardAssignedEvent";
 import { CardUnassignedEvent } from "./trello_events/CardUnassignedEvent";
 import { CardCommentedEvent } from "./trello_events/CardCommentedEvent";
 import { LogService } from "matrix-js-snippets";
-import { ConsoleLogger } from "matrix-bot-sdk";
 
 export class WebhookProcessor {
     constructor(private announcer: RoomAnnouncer) {
