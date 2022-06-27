@@ -80,7 +80,6 @@ export class WebhookProcessor {
                 const card = <TrelloCard>action["data"]["card"];
                 const list = <TrelloList>action["data"]["list"];
                 const creator = <TrelloMember>action["memberCreator"];
-
                 if (!card || !list || !creator) return;
 
                 event = new CardCommentedEvent(card, list, creator, board);
