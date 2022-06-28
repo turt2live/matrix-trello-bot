@@ -13,6 +13,7 @@ import { CardUpdatedEvent } from "./trello_events/CardUpdatedEvent";
 import { CardDeletedEvent } from "./trello_events/CardDeletedEvent";
 import { CardAssignedEvent } from "./trello_events/CardAssignedEvent";
 import { CardUnassignedEvent } from "./trello_events/CardUnassignedEvent";
+import { CardCommentedEvent } from "./trello_events/CardCommentedEvent";
 import { LogService } from "matrix-js-snippets";
 
 export class WebhookProcessor {
@@ -26,10 +27,9 @@ export class WebhookProcessor {
             if (!payload["action"] || !payload["action"]["data"]) return;
 
             const board = <TrelloBoard>payload["model"];
-
             let event: TrelloEvent = null;
-
             const action = payload["action"];
+
             if (action["type"] === "createCard") {
                 const card = <TrelloCard>action["data"]["card"];
                 const list = <TrelloList>action["data"]["list"];
@@ -76,6 +76,13 @@ export class WebhookProcessor {
                 if (!card || !member || !creator) return;
 
                 event = new CardUnassignedEvent(card, creator, member, board);
+            } else if (action["type"] === "commentCard") {
+                const card = <TrelloCard>action["data"]["card"];
+                const list = <TrelloList>action["data"]["list"];
+                const creator = <TrelloMember>action["memberCreator"];
+                if (!card || !list || !creator) return;
+
+                event = new CardCommentedEvent(card, list, creator, board);
             } else {
                 LogService.warn("WebhookProcessor", "Unrecognized action");
                 LogService.warn("WebhookProcessor", action);
