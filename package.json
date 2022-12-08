@@ -12,7 +12,7 @@
   "dependencies": {
     "@types/node": "^8.10.34",
     "config": "^2.0.1",
-    "express": "^4.16.3",
+    "express": "^4.17.3",
     "js-yaml": "^3.13.1",
     "matrix-bot-sdk": "^0.3.2",
     "matrix-js-snippets": "^0.2.8",
